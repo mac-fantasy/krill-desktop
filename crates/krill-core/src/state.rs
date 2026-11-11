@@ -385,6 +385,9 @@ impl DashboardState {
         for s in &mut subscriptions.subscriptions {
             s.subscription_start_at = None;
             s.subscription_end_at = Some(Utc::now() + chrono::Duration::days(20));
+            if s.quota.window_reset_at.is_some() {
+                s.quota.window_reset_at = Some(Utc::now() + chrono::Duration::days(2));
+            }
         }
         self.apply_subscriptions(subscriptions, Utc::now());
         self.stats = Some(
@@ -393,6 +396,17 @@ impl DashboardState {
             )))
             .unwrap(),
         );
+        if let Some(stats) = &mut self.stats {
+            let now = Utc::now();
+            let hour = DateTime::from_timestamp(now.timestamp() / 3600 * 3600, 0).unwrap();
+            stats.trend = (0..24)
+                .map(|i| TrendBucket {
+                    bucket_start: hour - chrono::Duration::hours(23 - i),
+                    request_count: 2 + (i * 7) % 17,
+                    total_cost_usd: Some(rust_decimal::Decimal::new(1 + (i * 11) % 31, 4)),
+                })
+                .collect();
+        }
         let cards: ResetCards = serde_json::from_value(decode(include_bytes!(
             "../../../contracts/fixtures/reset-cards.json"
         )))

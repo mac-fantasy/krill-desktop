@@ -272,7 +272,21 @@ impl BrowserLogin {
                 {use wry::WebViewExtMacOS;let main=browser.webview.as_ref().unwrap().webview();let popups=browser.windows.popups.borrow();let child=popups[0].view.webview();
                     unsafe{let a=main.configuration().websiteDataStore();let b=child.configuration().websiteDataStore();!a.isPersistent() && objc2::rc::Retained::as_ptr(&a)==objc2::rc::Retained::as_ptr(&b)}}
                 #[cfg(target_os="windows")]
-                {true}
+                {
+                    use wry::WebViewExtWindows;
+                    use windows_core::Interface;
+                    use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2_13;
+                    let popups=browser.windows.popups.borrow();
+                    let profiles=(|| -> windows_core::Result<_> {unsafe {
+                        let main=browser.webview.as_ref().unwrap().webview().cast::<ICoreWebView2_13>()?.Profile()?;
+                        let child=popups[0].view.webview().cast::<ICoreWebView2_13>()?.Profile()?;
+                        let mut a=Default::default(); let mut b=Default::default();
+                        main.IsInPrivateModeEnabled(&mut a)?;
+                        child.IsInPrivateModeEnabled(&mut b)?;
+                        Ok(a.as_bool() && b.as_bool() && browser.webview.as_ref().unwrap().environment()==popups[0].view.environment())
+                    }})();
+                    profiles.unwrap_or(false)
+                }
             });
             anyhow::ensure!(private,"OAuth popup did not share a private data store");
             Self::evaluate(&browser,popup,"window.opener.postMessage('callback received','*'); 'sent'",cx).await?;

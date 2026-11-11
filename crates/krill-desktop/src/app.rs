@@ -102,11 +102,18 @@ impl Dashboard {
         })
         .detach();
         cx.spawn(async move |this, cx| {
+            let mut last_tick = Utc::now();
             loop {
                 cx.background_executor().timer(Duration::from_secs(1)).await;
                 if this
                     .update(cx, |this, cx| {
                         let now = Utc::now();
+                        // A long gap means the machine or event loop was suspended.
+                        // Clear retry backoff so a resumed client resynchronizes promptly.
+                        if (now - last_tick).num_seconds() > 5 {
+                            this.state.last_attempt = None;
+                        }
+                        last_tick = now;
                         if this.state.advance_time(now) {
                             this.save();
                             cx.notify();
@@ -277,6 +284,8 @@ impl Dashboard {
         self.state.panel_visible = true;
         let rect = self.tray.as_ref().and_then(|t| t.rect());
         let focus = self.focus.clone();
+        #[cfg(target_os = "macos")]
+        let status_window = self.tray.as_ref().and_then(|t| t.status_window());
         #[cfg(target_os = "windows")]
         let anchor = self.orb_window.and_then(|orb| {
             orb.update(cx, |_, window, _| crate::windows_native::rect(window).ok())
@@ -285,6 +294,10 @@ impl Dashboard {
         });
         let _ = self.window.update(cx, |_, window, cx| {
             platform::place_panel(window, rect);
+            #[cfg(target_os = "macos")]
+            if let Some(status_window) = status_window {
+                platform::place_mac_panel(window, &status_window);
+            }
             #[cfg(target_os = "windows")]
             if let Some(anchor) = anchor {
                 let _ = crate::windows_native::place_panel(window, anchor);
@@ -1566,6 +1579,33 @@ impl Render for Dashboard {
                         .text_color(rgb(0xe5c09d))
                         .text_size(px(11.))
                         .child("演示数据　虚构样例，不代表真实账号"),
+                )
+            })
+            .when(self.updater.available.is_some() && !self.login_open, |d| {
+                let version = self.updater.available.as_ref().unwrap().version.to_string();
+                d.child(
+                    div()
+                        .mx_6()
+                        .mt_3()
+                        .p_3()
+                        .rounded_lg()
+                        .bg(rgb(0x203b3c))
+                        .flex()
+                        .items_center()
+                        .justify_between()
+                        .child(format!("新版本 {version} 可用"))
+                        .child(
+                            Button::new("update-banner")
+                                .small()
+                                .primary()
+                                .label(if self.updater.busy {
+                                    "准备更新中…"
+                                } else {
+                                    "下载并重启"
+                                })
+                                .disabled(self.updater.busy)
+                                .on_click(cx.listener(|this, _, _, cx| this.install_update(cx))),
+                        ),
                 )
             })
             .when(self.state.is_stale, |d| {

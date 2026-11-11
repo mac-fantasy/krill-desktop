@@ -399,6 +399,12 @@ impl Render for Orb {
             .debug_selector(|| "orb".into())
             .size_full()
             .cursor_pointer()
+            .tooltip({
+                let tooltip = state.as_ref().map(|s| s.tooltip()).unwrap_or_default();
+                move |window, cx| {
+                    gpui_kit::component::tooltip::Tooltip::new(tooltip.clone()).build(window, cx)
+                }
+            })
             .child(visual)
             .on_hover(cx.listener(|this, hover: &bool, window, cx| {
                 this.hovered = *hover;

@@ -41,7 +41,7 @@ jobs:
       - name: Test shared contracts and GPUI interactions
         run: cargo test --workspace --locked
       - name: Build native client
-        run: cargo build --package krill-desktop --locked
+        run: cargo build --package krill-desktop --features native-qa --locked
       - name: Run native macOS smoke verification
         if: runner.os == 'macOS'
         run: ./target/debug/KrillMac --smoke-test --data-dir "$RUNNER_TEMP/krill-native-demo" --output artifacts/rust-native

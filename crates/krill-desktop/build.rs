@@ -11,4 +11,23 @@ fn main() {
         "KRILL_VERSION must be X.Y.Z"
     );
     println!("cargo:rustc-env=KRILL_BUILD_VERSION={version}");
+    #[cfg(target_os = "windows")]
+    {
+        println!("cargo:rerun-if-changed=../../resources/windows/krill.ico");
+        println!("cargo:rerun-if-changed=../../resources/windows/app.manifest");
+        let parts: Vec<u64> = version.split('.').map(|p| p.parse().unwrap()).collect();
+        let packed = (parts[0] << 48) | (parts[1] << 32) | (parts[2] << 16);
+        winresource::WindowsResource::new()
+            .set_icon("../../resources/windows/krill.ico")
+            .set_manifest_file("../../resources/windows/app.manifest")
+            .set("FileDescription", "Krill Desktop")
+            .set("ProductName", "Krill Desktop")
+            .set("OriginalFilename", "Krill.Desktop.exe")
+            .set("FileVersion", &version)
+            .set("ProductVersion", &version)
+            .set_version_info(winresource::VersionInfo::FILEVERSION, packed)
+            .set_version_info(winresource::VersionInfo::PRODUCTVERSION, packed)
+            .compile()
+            .expect("Windows icon, version and DPI manifest must be embedded");
+    }
 }

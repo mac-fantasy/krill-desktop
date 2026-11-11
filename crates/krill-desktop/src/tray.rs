@@ -100,6 +100,13 @@ impl SystemTray {
         }
         Some(rect)
     }
+    #[cfg(target_os = "macos")]
+    pub fn status_window(&self) -> Option<objc2::rc::Retained<objc2_app_kit::NSWindow>> {
+        self.icon
+            .ns_status_item()?
+            .button(objc2::MainThreadMarker::new()?)?
+            .window()
+    }
     pub fn update(&mut self, state: &DashboardState) -> Result<()> {
         let percent = state.quota().and_then(|q| q.percent());
         let title = if state.preferences.show_percentage {

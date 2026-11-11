@@ -178,6 +178,30 @@ pub fn place_panel(window: &Window, rect: Option<tray_icon::Rect>) {
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     let _ = (window, rect);
 }
+#[cfg(target_os = "macos")]
+pub fn place_mac_panel(window: &Window, status: &objc2_app_kit::NSWindow) {
+    if let (Some(panel), Some(screen)) = (native_window(window), status.screen()) {
+        let visible = screen.visibleFrame();
+        let anchor = status.frame();
+        let width = 520_f64.min((visible.size.width - 16.).max(1.));
+        let height = 800_f64.min((visible.size.height - 16.).max(1.));
+        let x = (anchor.origin.x + anchor.size.width / 2. - width / 2.).clamp(
+            visible.origin.x + 8.,
+            (visible.origin.x + visible.size.width - width - 8.).max(visible.origin.x + 8.),
+        );
+        let y = (anchor.origin.y - height - 8.).clamp(
+            visible.origin.y + 8.,
+            (visible.origin.y + visible.size.height - height - 8.).max(visible.origin.y + 8.),
+        );
+        panel.setFrame_display(
+            objc2_foundation::NSRect::new(
+                objc2_foundation::NSPoint::new(x, y),
+                objc2_foundation::NSSize::new(width, height),
+            ),
+            true,
+        );
+    }
+}
 pub fn launch_status() -> (bool, bool) {
     if cfg!(test) {
         return (false, false);
@@ -213,8 +237,10 @@ pub fn set_launch_at_login(enabled: bool) -> Result<()> {
     }
     #[cfg(target_os = "windows")]
     {
+        use std::os::windows::process::CommandExt;
         let key = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
         let mut command = std::process::Command::new("reg.exe");
+        command.creation_flags(0x08000000); // CREATE_NO_WINDOW
         if enabled {
             command
                 .args(["add", key, "/v", "KrillDesktop", "/t", "REG_SZ", "/d"])
