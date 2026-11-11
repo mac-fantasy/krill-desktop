@@ -164,9 +164,54 @@ pub fn move_resize(window: &Window, r: Rect) -> Result<()> {
     }
     Ok(())
 }
+// GPUI's default Windows procedure keeps an invisible resize frame and returns
+// MA_ACTIVATE even for WS_EX_NOACTIVATE. Our borderless utility windows need
+// their entire bounds as client area, and the orb must never take activation.
+unsafe extern "system" fn utility_window_proc(
+    hwnd: HWND,
+    message: u32,
+    wparam: windows::Win32::Foundation::WPARAM,
+    lparam: windows::Win32::Foundation::LPARAM,
+    id: usize,
+    no_activate: usize,
+) -> windows::Win32::Foundation::LRESULT {
+    use windows::Win32::{
+        Foundation::LRESULT,
+        UI::Shell::{DefSubclassProc, RemoveWindowSubclass},
+    };
+    unsafe {
+        if message == WM_NCCALCSIZE && wparam.0 != 0 {
+            return LRESULT(0);
+        }
+        if no_activate != 0 {
+            if message == WM_MOUSEACTIVATE {
+                return LRESULT(MA_NOACTIVATE as isize);
+            }
+            if message == WM_GETMINMAXINFO {
+                let limits = &mut *(lparam.0 as *mut MINMAXINFO);
+                limits.ptMinTrackSize = POINT { x: 1, y: 1 };
+                return LRESULT(0);
+            }
+        }
+        if message == WM_NCDESTROY {
+            let _ = RemoveWindowSubclass(hwnd, Some(utility_window_proc), id);
+        }
+        DefSubclassProc(hwnd, message, wparam, lparam)
+    }
+}
 pub fn configure(window: &Window, no_activate: bool, topmost: bool) -> Result<()> {
     let hwnd = hwnd(window)?;
     unsafe {
+        anyhow::ensure!(
+            windows::Win32::UI::Shell::SetWindowSubclass(
+                hwnd,
+                Some(utility_window_proc),
+                0x4b52494c,
+                no_activate as usize
+            )
+            .as_bool(),
+            "Unable to configure borderless utility window"
+        );
         let mut style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) | WS_EX_TOOLWINDOW.0 as isize;
         style &= !(WS_EX_APPWINDOW.0 as isize);
         if no_activate {
