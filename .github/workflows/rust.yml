@@ -47,7 +47,7 @@ jobs:
       - name: Test Windows update installer
         if: runner.os == 'Windows'
         shell: pwsh
-        run: ./scripts/windows/test-update.ps1
+        run: ./scripts/tests/test_update.ps1
       - name: Build native client
         run: cargo build --package krill-desktop --features native-qa --locked
       - name: Run native macOS smoke verification

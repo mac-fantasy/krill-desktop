@@ -106,10 +106,7 @@ impl BrowserLogin {
                 builder = builder.with_url("about:blank");
             }
             let view = builder.build_as_child(&*window)?;
-            anyhow::ensure!(
-                is_private(&view),
-                "This WebView runtime does not support private login sessions"
-            );
+            prepare_private(&view)?;
             if !smoke {
                 view.load_url(LOGIN_URL)?;
             }
@@ -456,7 +453,9 @@ fn build(
     let mut builder = WebViewBuilder::new()
         .with_incognito(true)
         .with_devtools(false)
-        .with_clipboard(true)
+        .with_clipboard(false)
+        .with_permission_handler(|_| wry::PermissionResponse::Deny)
+        .with_download_started_handler(|_, _| false)
         .with_on_page_load_handler(move |event, _| {
             if matches!(event, wry::PageLoadEvent::Finished) {
                 let _ = loaded.try_send(BrowserEvent::Loaded(id));
@@ -494,7 +493,7 @@ fn build(
                 let window = PopupWindow::new()?;
                 let view =
                     build(session.clone(), id, Some(features), false)?.build_as_child(&window)?;
-                anyhow::ensure!(is_private(&view), "OAuth popup must use a private session");
+                prepare_private(&view)?;
                 #[cfg(target_os = "macos")]
                 let response = {
                     use wry::WebViewExtMacOS;
@@ -569,4 +568,25 @@ fn is_private(view: &WebView) -> bool {
         })()
         .unwrap_or(false)
     }
+}
+
+fn prepare_private(view: &WebView) -> Result<()> {
+    anyhow::ensure!(
+        is_private(view),
+        "This WebView runtime does not support private login sessions"
+    );
+    #[cfg(target_os = "windows")]
+    {
+        use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Settings4;
+        use windows_core::Interface;
+        use wry::WebViewExtWindows;
+        unsafe {
+            let settings = view.webview().Settings()?;
+            settings.SetAreHostObjectsAllowed(false)?;
+            settings
+                .cast::<ICoreWebView2Settings4>()?
+                .SetIsPasswordAutosaveEnabled(false)?;
+        }
+    }
+    Ok(())
 }

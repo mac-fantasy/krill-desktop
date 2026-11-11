@@ -5,7 +5,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Formatting failed.' }
     cargo test --workspace --locked
     if ($LASTEXITCODE -ne 0) { throw 'Rust tests failed.' }
-    & ./scripts/windows/test-update.ps1
+    & ./scripts/tests/test_update.ps1
     cargo build --locked --package krill-desktop --features native-qa
     if ($LASTEXITCODE -ne 0) { throw 'Native build failed.' }
     $data = Join-Path $env:TEMP 'krill-native-demo'
