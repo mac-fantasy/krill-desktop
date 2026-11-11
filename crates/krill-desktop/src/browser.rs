@@ -100,9 +100,21 @@ impl BrowserLogin {
             next_id: Cell::new(1),
             sender,
         });
-        let browser = build(windows.clone(), 0, None, smoke)
-            .and_then(|builder| Ok(if smoke{builder.with_html("<!doctype html><html><body>Krill OAuth regression<script>window.received=null;window.addEventListener('message',event=>window.received=event.data);</script></body></html>")}else{builder.with_url(LOGIN_URL)}.build_as_child(&*window)?))
-            .and_then(|view| {anyhow::ensure!(is_private(&view),"This WebView runtime does not support private login sessions"); Ok(view)});
+        let browser = (|| -> Result<WebView> {
+            let mut builder = build(windows.clone(), 0, None, smoke)?;
+            if smoke {
+                builder=builder.with_html("<!doctype html><html><body>Krill OAuth regression<script>window.received=null;window.addEventListener('message',event=>window.received=event.data);</script></body></html>");
+            }
+            let view = builder.build_as_child(&*window)?;
+            anyhow::ensure!(
+                is_private(&view),
+                "This WebView runtime does not support private login sessions"
+            );
+            if !smoke {
+                view.load_url(LOGIN_URL)?;
+            }
+            Ok(view)
+        })();
         let (webview, note) = match browser {
             Ok(view) => (
                 Some(view),

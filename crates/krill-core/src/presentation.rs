@@ -187,14 +187,18 @@ impl QuotaProjection {
         }
     }
     pub fn percent(&self) -> Option<f64> {
-        Some(
-            (self
-                .remaining?
-                .checked_div(self.limit.filter(|v| *v > Decimal::ZERO)?)?
-                * Decimal::ONE_HUNDRED)
-                .to_f64()?
-                .clamp(0., 100.),
-        )
+        let limit = self.limit.filter(|v| *v > Decimal::ZERO)?;
+        let remaining = self.remaining?;
+        if remaining <= Decimal::ZERO {
+            return Some(0.);
+        }
+        if remaining >= limit {
+            return Some(100.);
+        }
+        remaining
+            .checked_div(limit)?
+            .checked_mul(Decimal::ONE_HUNDRED)?
+            .to_f64()
     }
     pub fn amount(&self, v: Option<Decimal>) -> String {
         if self.is_money {

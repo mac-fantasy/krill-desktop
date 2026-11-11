@@ -1142,7 +1142,7 @@ impl Dashboard {
                     core::percentage(
                         channel
                             .cache_rate
-                            .map(|v| v * rust_decimal::Decimal::ONE_HUNDRED),
+                            .and_then(|v| v.checked_mul(rust_decimal::Decimal::ONE_HUNDRED)),
                     ),
                 ));
             }

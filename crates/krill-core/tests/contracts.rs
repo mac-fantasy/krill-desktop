@@ -69,6 +69,18 @@ fn invalid_amount_types_do_not_turn_into_zero_or_round_through_float() {
     assert_eq!(cost(Some(dec("0.0007"))), "$0.0007");
     assert_eq!(money(None), "—");
     assert_eq!(money(Some(Decimal::ZERO)), "$0.00");
+    let mut subscription = Subscription::default();
+    subscription.quota.daily_limit_usd = Some(dec("0.0000000000000000000000000001"));
+    subscription.quota.remaining_usd = Some(Decimal::MAX);
+    assert_eq!(
+        QuotaProjection::new(&subscription, None).percent(),
+        Some(100.)
+    );
+    subscription.quota.remaining_usd = Some(Decimal::MIN);
+    assert_eq!(
+        QuotaProjection::new(&subscription, None).percent(),
+        Some(0.)
+    );
 }
 #[test]
 fn monthly_selection_matches_shared_cases_and_expiry_boundary() {
