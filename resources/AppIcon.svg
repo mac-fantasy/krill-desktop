@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>Krill Desktop</title>
+  <desc>Coral geometric krill within a mint quota ring on a dark macOS tile. Inspired by the public Krill brand mark at https://www.krill-code.com/brand/icon-160.png.</desc>
+  <defs>
+    <linearGradient id="tile" x1="120" y1="80" x2="900" y2="944" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#253F49"/>
+      <stop offset="0.48" stop-color="#142832"/>
+      <stop offset="1" stop-color="#0B1820"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="180" y1="80" x2="800" y2="944" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#92B8BC" stop-opacity="0.42"/>
+      <stop offset="0.45" stop-color="#567A83" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000C14" stop-opacity="0.7"/>
+    </linearGradient>
+    <linearGradient id="mint" x1="280" y1="220" x2="760" y2="820" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#B5F7E4"/>
+      <stop offset="0.52" stop-color="#7CE3CD"/>
+      <stop offset="1" stop-color="#48BBA8"/>
+    </linearGradient>
+    <linearGradient id="coral" x1="300" y1="34" x2="300" y2="620" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FF866C"/>
+      <stop offset="0.43" stop-color="#FF607F"/>
+      <stop offset="1" stop-color="#F63F8A"/>
+    </linearGradient>
+    <filter id="shadow" x="-15%" y="-15%" width="130%" height="140%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="14" stdDeviation="12" flood-color="#031016" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+  <rect x="80" y="80" width="864" height="864" rx="194" fill="url(#tile)" filter="url(#shadow)"/>
+  <rect x="81" y="81" width="862" height="862" rx="193" fill="none" stroke="url(#rim)" stroke-width="2"/>
+  <circle cx="512" cy="512" r="330" fill="none" stroke="#41616A" stroke-opacity="0.48" stroke-width="22"/>
+  <path d="M512 182 A330 330 0 1 1 182 512" fill="none" stroke="url(#mint)" stroke-width="24" stroke-linecap="round"/>
+  <g transform="translate(210 203) scale(0.95)">
+    <g fill="url(#coral)">
+      <path d="M331 112 H553 C553 241 461 346 331 346 Z"/>
+      <path d="M309 112 C250 119 194 143 155 177 L309 330 Z"/>
+      <path d="M138 195 C97 240 73 294 72 348 H291 Z"/>
+      <path d="M72 371 C72 432 94 490 135 532 L295 371 Z"/>
+      <path d="M154 550 C197 586 251 607 309 610 V394 Z"/>
+      <path d="M331 394 L491 547 C449 585 391 608 331 610 Z"/>
+    </g>
+    <g fill="none" stroke="url(#coral)" stroke-linecap="round">
+      <path d="M550 116 C548 73 522 42 482 42 H132" stroke-width="16"/>
+      <path d="M548 116 C532 91 505 78 473 78 H211" stroke-width="13"/>
+    </g>
+    <circle cx="435" cy="210" r="68" fill="#FFF5EE"/>
+    <circle cx="438" cy="211" r="52" fill="#0A171F"/>
+    <circle cx="454" cy="193" r="16" fill="#FFFFFF"/>
+  </g>
+</svg>

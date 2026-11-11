@@ -1,4 +1,5 @@
 # Build outputs and release packages
+/target/
 **/[Bb]in/
 **/[Oo]bj/
 /artifacts/

@@ -1,0 +1,42 @@
+name: Rust migration
+
+on:
+  push:
+    branches: ['rust-*']
+  pull_request:
+    paths: ['Cargo.toml', 'Cargo.lock', 'crates/**', 'resources/**', 'scripts/build-macos.sh', '.github/workflows/rust.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-26, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      MACOSX_DEPLOYMENT_TARGET: '15.0'
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Test shared contracts and GPUI interactions
+        run: cargo test --workspace --locked
+      - name: Build native client
+        run: cargo build --package krill-desktop --locked
+      - name: Package Apple Silicon app
+        if: runner.os == 'macOS'
+        run: bash scripts/build-macos.sh debug
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'macOS'
+        with:
+          name: rust-macos-arm64-debug
+          path: dist/Krill.Desktop-*-macos-arm64-debug
+          if-no-files-found: error
