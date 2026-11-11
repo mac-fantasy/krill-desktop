@@ -48,6 +48,6 @@ macOS旧更新器只识别universal附件。0.2.0只发布arm64，需手动安�
 
 ## 收尾
 
-- [ ] 最新Windows和macOS原生CI均通过。
-- [ ] 删除旧`apps/`、C#/Swift工程和专用脚本，只保留共享资源与安装器回归。
-- [ ] 清理旧产物与中间缓存，保留当前可审阅的构建结果，检查工作区与git diff。
+- [x] Windows和macOS原生CI均通过：[运行42983802670](https://github.com/mac-fantasy/krill-desktop/actions/runs/42983802670)，包含两端Release优化包、Windows兼容程序集元数据读取、原生窗口裁剪及OAuth测试。
+- [x] 删除旧`apps/`、C#/Swift工程和专用脚本，只保留共享资源与安装器回归。
+- [x] 清理旧产物与中间缓存，释放13.2 GiB；保留当前安装包与验收结果，`git diff --check`通过。
