@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/krill-core", "crates/krill-desktop"]
+members = ["crates/krill-core", "crates/krill-desktop", "tools/krill-package"]
 default-members = ["crates/krill-desktop"]
 resolver = "3"
 

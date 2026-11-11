@@ -37,3 +37,6 @@ Windows 0.1.8 更新器强制检查.NET程序集DLL；纯Rust包必须设计兼�
 - 下一阶段：完成Windows悬浮球（原88px/16px、650ms、无激活、多屏DPI、托盘显示隐藏）及设置；应用内临时WebView/OAuth；升级兼容包/发布脚本；补齐原生验证后再删除旧目录。当前CLI二进制暂名`KrillMac`，Windows发布需明确`Krill.Desktop.exe`名称和清单。
 - 当前证据：提交969a268的原生CI运行42975048187在macos-26、windows-latest均成功（这是更新服务接入前的快照）。更新服务接入后，本机`cargo test --workspace --locked`共26项通过，包括签名arm64应用的正向包校验、错误版本拒绝、ZIP穿越/路径别名拒绝。最新本机debug包构建与签名检查通过。
 - 原生冒烟命令：`target/debug/KrillMac --smoke-test --data-dir /tmp/krill-rust-smoke-data --output artifacts/rust-native`。该模式只用演示数据、逐页切换并自动退出；不等价于截图和鼠标人工验收。GPUI交互单测另行覆盖点击、悬停、快捷键。
+- Windows悬浮球已实现：88/16逻辑像素、650ms、无激活tool window、Win32原生拖动（GPUI Windows start_window_move为空）、两侧锚点、多屏工作区、DPI、置顶、托盘显示隐藏、旧坐标偏好与DPAPI测试。新增独立几何测试及Windows原生样式/尺寸/焦点检查；仍须以修复后的CI结果确认。
+- 应用内登录已接入Wry 0.57.2，主窗口/授权子窗口只允许HTTPS（子窗口初始about:blank例外），最多5个子窗口，共用私有会话并保留opener，双重来源检查后再验证会话。macOS子窗口单独UCC避免关闭消息误发给父窗口。最新本机原生冒烟包含真实WKWebView的opener、共享非持久会话、postMessage、脚本独立关闭和父关闭清理，六项均通过。
+- Windows兼容包采用Rust构建工具`tools/krill-package`生成无业务代码的.NET版本元数据DLL，以满足0.1.x更新器；本体无.NET运行依赖。新增Windows打包脚本及PowerShell AssemblyName版本校验；新客户端用清单/哈希校验。macOS旧版识别universal而新版仅arm64，应通过手动安装/Homebrew迁移一次，避免将arm64冒充universal推送给旧Intel用户。

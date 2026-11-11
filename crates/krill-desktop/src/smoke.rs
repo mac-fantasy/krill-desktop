@@ -36,9 +36,11 @@ pub fn run(
         let orb=view.update(cx,|view,_|view.orb.clone()).map(|orb|orb.update(cx,|orb,cx|orb.verify_native(cx))).unwrap_or(serde_json::json!({"success":false}));
         #[cfg(not(target_os="windows"))]
         let orb=serde_json::json!({"success":true,"applicable":false});
-        let valid=account && orb["success"]==true && tabs.len()==5 && tabs.iter().all(|t|t["width"].as_f64().unwrap_or(0.)>=430. && t["height"].as_f64().unwrap_or(0.)>=500.);
-        let report=serde_json::json!({"success":valid,"mode":"synthetic_native_event_loop","version":updates::CURRENT_VERSION,"platform":updates::PLATFORM,"tabs":tabs,"account_projection":account,"orb":orb});
+        let browser=crate::browser::BrowserLogin::verify(cx).await.unwrap_or_else(|e|serde_json::json!({"success":false,"error":e.to_string()}));
+        let valid=account && orb["success"]==true && browser["success"]==true && tabs.len()==5 && tabs.iter().all(|t|t["width"].as_f64().unwrap_or(0.)>=430. && t["height"].as_f64().unwrap_or(0.)>=500.);
+        let report=serde_json::json!({"success":valid,"mode":"synthetic_native_event_loop","version":updates::CURRENT_VERSION,"platform":updates::PLATFORM,"tabs":tabs,"account_projection":account,"orb":orb,"browser":browser});
         if std::fs::create_dir_all(&output).is_ok() && std::fs::write(output.join("verification.json"),serde_json::to_vec_pretty(&report).unwrap()).is_ok() {success.store(valid,Ordering::Release);}
+        if !valid{eprintln!("Native smoke verification failed; see verification.json");std::process::exit(1);}
         let _=cx.update(|cx|cx.quit());
     }).detach();
 }

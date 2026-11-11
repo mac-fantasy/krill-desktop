@@ -1,0 +1,10 @@
+[package]
+name = "krill-package"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+anyhow.workspace = true
+krill-core = { path = "../../crates/krill-core" }
+dotnetdll = "=0.4.0"

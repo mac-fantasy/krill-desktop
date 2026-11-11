@@ -9,7 +9,8 @@ use windows::Win32::{
 };
 
 pub fn hwnd(window: &Window) -> Result<HWND> {
-    let handle = HasWindowHandle::window_handle(window)?;
+    let handle = HasWindowHandle::window_handle(window)
+        .map_err(|_| anyhow::anyhow!("Native window handle unavailable"))?;
     if let RawWindowHandle::Win32(h) = handle.as_raw() {
         Ok(HWND(h.hwnd.get() as *mut _))
     } else {

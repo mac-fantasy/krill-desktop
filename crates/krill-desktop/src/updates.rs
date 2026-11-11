@@ -261,16 +261,14 @@ fn validate_payload(payload: &Path, version: Version) -> Result<()> {
             } else {
                 app.clone()
             };
-            ensure!(
-                Command::new(program)
-                    .args(args)
-                    .arg(target)
-                    .stdout(Stdio::null())
-                    .stderr(Stdio::null())
-                    .status()?
-                    .success(),
-                "安装包签名或架构校验失败。"
-            );
+            let mut command = Command::new(program);
+            if program.ends_with("lipo") {
+                command.arg(target).args(args);
+            } else {
+                command.args(args).arg(target);
+            }
+            let output = command.output()?;
+            ensure!(output.status.success(), "安装包校验失败（{}）。", program);
         }
     }
     #[cfg(target_os = "windows")]

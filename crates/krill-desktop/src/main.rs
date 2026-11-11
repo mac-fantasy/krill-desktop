@@ -1,6 +1,8 @@
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 extern crate gpui_kit as gpui;
 mod app;
+mod browser;
+mod browser_window;
 #[cfg(any(target_os = "windows", test))]
 mod geometry;
 #[cfg(target_os = "windows")]
@@ -19,6 +21,10 @@ use gpui_kit::*;
 gpui_kit::actions!(krill, [Quit]);
 
 fn main() -> anyhow::Result<()> {
+    #[cfg(target_os = "windows")]
+    unsafe {
+        std::env::set_var("GPUI_DISABLE_DIRECT_COMPOSITION", "true");
+    }
     let args: Vec<_> = std::env::args().collect();
     let smoke = args.iter().any(|s| s == "--smoke-test");
     let demo = smoke || args.iter().any(|s| s == "--demo");
@@ -51,12 +57,12 @@ fn main() -> anyhow::Result<()> {
         cx.set_menus([
             Menu::new("Krill Desktop").items([MenuItem::action("退出 Krill Desktop", Quit)]),
             Menu::new("编辑").items([
-                MenuItem::action("撤销", base::input::Undo),
-                MenuItem::action("重做", base::input::Redo),
-                MenuItem::action("剪切", base::input::Cut),
-                MenuItem::action("复制", base::input::Copy),
-                MenuItem::action("粘贴", base::input::Paste),
-                MenuItem::action("全选", base::input::SelectAll),
+                MenuItem::os_action("撤销", base::input::Undo, OsAction::Undo),
+                MenuItem::os_action("重做", base::input::Redo, OsAction::Redo),
+                MenuItem::os_action("剪切", base::input::Cut, OsAction::Cut),
+                MenuItem::os_action("复制", base::input::Copy, OsAction::Copy),
+                MenuItem::os_action("粘贴", base::input::Paste, OsAction::Paste),
+                MenuItem::os_action("全选", base::input::SelectAll, OsAction::SelectAll),
             ]),
         ]);
         platform::accessory();

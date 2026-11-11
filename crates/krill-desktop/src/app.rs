@@ -1,3 +1,4 @@
+use crate::browser::BrowserLogin;
 use crate::storage::Storage;
 use crate::updates;
 use crate::{
@@ -38,6 +39,8 @@ enum Event {
     Tray(TrayAction),
     UpdateCheck(Result<Option<updates::AvailableUpdate>, String>),
     UpdatePrepared(Result<updates::PreparedUpdate, String>),
+    BrowserCandidate(u64, Session),
+    BrowserClosed(u64),
 }
 
 pub struct Dashboard {
@@ -61,6 +64,8 @@ pub struct Dashboard {
     launch_at_login: bool,
     launch_approval: bool,
     updater: updates::UpdateState,
+    browser: Option<Entity<BrowserLogin>>,
+    browser_window: Option<AnyWindowHandle>,
     #[cfg(target_os = "windows")]
     pub(crate) orb_window: Option<AnyWindowHandle>,
     #[cfg(target_os = "windows")]
@@ -203,6 +208,8 @@ impl Dashboard {
             launch_at_login,
             launch_approval,
             updater: updates::UpdateState::default(),
+            browser: None,
+            browser_window: None,
             #[cfg(target_os = "windows")]
             orb_window: None,
             #[cfg(target_os = "windows")]
@@ -316,6 +323,64 @@ impl Dashboard {
     fn sync_epoch(&self) {
         self.epoch.store(self.state.generation, Ordering::Release);
     }
+    fn open_embedded(&mut self, cx: &mut Context<Self>) {
+        if self.state.demo_only || self.login_busy {
+            return;
+        }
+        if let Some(window) = self.browser_window {
+            let _ = window.update(cx, |_, window, cx| {
+                platform::show(window);
+                window.activate_window();
+                cx.activate(true);
+            });
+            return;
+        }
+        let generation = self.state.generation;
+        let candidate = self.sender.clone();
+        let closed = self.sender.clone();
+        match BrowserLogin::open(
+            cx,
+            move |session| {
+                let _ = candidate.try_send(Event::BrowserCandidate(generation, session));
+            },
+            move || {
+                let _ = closed.try_send(Event::BrowserClosed(generation));
+            },
+        ) {
+            Ok((window, browser)) => {
+                self.browser_window = Some(window);
+                self.browser = Some(browser);
+            }
+            Err(_) => self.login_note = "无法启动应用内浏览器，请改用系统浏览器登录。".into(),
+        }
+        cx.notify();
+    }
+    fn close_embedded(&mut self, cx: &mut Context<Self>) {
+        if let Some(browser) = self.browser.take() {
+            browser.update(cx, |browser, _| browser.close());
+        }
+        if let Some(window) = self.browser_window.take() {
+            let _ = window.update(cx, |_, window, _| window.remove_window());
+        }
+    }
+    fn validate_session(&mut self, session: Session, cx: &mut Context<Self>) {
+        if self.login_busy || self.state.demo_only {
+            return;
+        }
+        let Some(api) = self.api.clone() else {
+            self.login_note = ApiError::Network.to_string();
+            return;
+        };
+        self.login_busy = true;
+        self.login_note = "正在验证会话…".into();
+        let generation = self.state.generation;
+        let sender = self.sender.clone();
+        std::thread::spawn(move || {
+            let result = api.profile(&session).map(|profile| (session, profile));
+            let _ = sender.send_blocking(Event::Login(generation, result));
+        });
+        cx.notify();
+    }
     fn refresh(&mut self, cx: &mut Context<Self>) {
         let Some(api) = self.api.clone() else {
             self.state.status_detail = ApiError::Network.to_string();
@@ -428,11 +493,16 @@ impl Dashboard {
                             self.state.accept_session(session, profile);
                             self.sync_epoch();
                             self.login_open = false;
+                            self.close_embedded(cx);
                             self.refresh(cx);
                         }
                         Err(e) => self.login_note = e.to_string(),
                     },
                     Err(e) => self.login_note = e.to_string(),
+                }
+                if let Some(browser) = &self.browser {
+                    let note = self.login_note.clone();
+                    browser.update(cx, |browser, cx| browser.set_note(note, cx));
                 }
             }
             Event::Tray(action) => match action {
@@ -492,6 +562,21 @@ impl Dashboard {
                     Err(error) => self.updater.status = error,
                 }
             }
+            Event::BrowserCandidate(generation, session) => {
+                if generation == self.state.generation {
+                    self.validate_session(session, cx);
+                }
+            }
+            Event::BrowserClosed(generation) => {
+                if generation == self.state.generation {
+                    self.close_embedded(cx);
+                    self.state.generation += 1;
+                    self.sync_epoch();
+                    self.state.is_loading = false;
+                    self.login_busy = false;
+                    cx.notify();
+                }
+            }
         }
         self.update_tray();
         cx.notify();
@@ -507,19 +592,7 @@ impl Dashboard {
         };
         self.input
             .update(cx, |field, cx| field.set_value("", window, cx));
-        let Some(api) = self.api.clone() else {
-            self.login_note = ApiError::Network.to_string();
-            return;
-        };
-        self.login_busy = true;
-        self.login_note = "正在验证会话…".into();
-        let generation = self.state.generation;
-        let sender = self.sender.clone();
-        std::thread::spawn(move || {
-            let result = api.profile(&session).map(|profile| (session, profile));
-            let _ = sender.send_blocking(Event::Login(generation, result));
-        });
-        cx.notify();
+        self.validate_session(session, cx);
     }
     pub(crate) fn switch_tab(&mut self, tab: usize, cx: &mut Context<Self>) {
         self.tab = tab;
@@ -531,6 +604,7 @@ impl Dashboard {
         cx.notify();
     }
     fn sign_out(&mut self, cx: &mut Context<Self>) {
+        self.close_embedded(cx);
         self.state.clear_account();
         self.sync_epoch();
         self.confirm_sign_out = false;
@@ -1322,12 +1396,13 @@ impl Dashboard {
         column().child(heading("连接 Krill 账号"))
             .child(label("在默认浏览器中登录，支持官网任意登录方式及二次登录。"))
             .child(Button::new("browser").primary().label("在浏览器中登录 ↗").on_click(|_,_,cx|cx.open_url(LOGIN_URL)))
+            .child(Button::new("embedded-browser").ghost().label("改用应用内登录").disabled(self.state.demo_only).on_click(cx.listener(|this,_,_,cx|this.open_embedded(cx))))
             .child(label("1. 在浏览器中完成 Krill 登录。\n2. 在 Krill 官网打开开发者工具的控制台，运行下方按钮复制的脚本。\n3. 复制弹出的会话，粘贴到下面并连接。\n\n会话等同于登录凭据，请勿分享。"))
             .child(Button::new("export").label("复制会话导出脚本").on_click(|_,_,cx|cx.write_to_clipboard(ClipboardItem::new_string(EXPORT_SCRIPT.into()))))
             .child(Input::new(&self.input))
             .child(Button::new("import").primary().label(if self.login_busy{"验证中…"}else{"验证并连接"}).disabled(self.login_busy).on_click(cx.listener(|this,_,window,cx|this.import(window,cx))))
             .child(label(self.login_note.clone()))
-            .child(Button::new("cancel-login").ghost().label("返回").on_click(cx.listener(|this,_,window,cx|{this.login_open=false;this.login_busy=false;this.state.generation+=1;this.sync_epoch();this.state.is_loading=false;this.input.update(cx,|input,cx|input.set_value("",window,cx));cx.notify();})))
+            .child(Button::new("cancel-login").ghost().label("返回").on_click(cx.listener(|this,_,window,cx|{this.close_embedded(cx);this.login_open=false;this.login_busy=false;this.state.generation+=1;this.sync_epoch();this.state.is_loading=false;this.input.update(cx,|input,cx|input.set_value("",window,cx));cx.notify();})))
     }
 }
 impl Render for Dashboard {
