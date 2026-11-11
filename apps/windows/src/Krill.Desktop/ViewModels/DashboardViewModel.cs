@@ -34,7 +34,6 @@ public sealed record SubscriptionCard(Subscription Source, QuotaProjection Quota
 }
 
 public sealed record AnnouncementCard(long Id, string Title, string Summary, string Date, bool IsUnread);
-public sealed record ChartBar(double Height, string Tooltip);
 public sealed record DetailRow(string Label, string Value);
 public sealed record ResetCardDisplay(ResetCard Source, DateTimeOffset At)
 {
@@ -87,7 +86,7 @@ public partial class DashboardViewModel : ObservableObject
     public ObservableCollection<SubscriptionCard> SelectablePlans { get; } = [];
     public ObservableCollection<AnnouncementCard> Announcements { get; } = [];
     public ObservableCollection<AnnouncementCard> RecentAnnouncements { get; } = [];
-    public ObservableCollection<ChartBar> ChartBars { get; } = [];
+    [ObservableProperty] private TrendChartData chartData = new([]);
     public ObservableCollection<DetailRow> UsageDetails { get; } = [];
     public ObservableCollection<DetailRow> CacheDetails { get; } = [];
     public ObservableCollection<ResetCardDisplay> ResetCards { get; } = [];
@@ -262,12 +261,7 @@ public partial class DashboardViewModel : ObservableObject
         foreach (var channel in stats.ChannelCacheRates ?? [])
             CacheDetails.Add(new(DisplayFormat.PlainText(channel.ChannelName, 60), AccountDetails.Percentage(channel.CacheRate * 100)));
         StatsNote = $"今日 · 本机时区 · 更新于 {DateTime.Now:HH:mm}";
-        ChartBars.Clear();
-        var buckets = (stats.Trend ?? []).TakeLast(48).ToArray();
-        var max = buckets.Select(b => b.TotalCostUsd ?? 0).DefaultIfEmpty(0).Max();
-        foreach (var bucket in buckets)
-            ChartBars.Add(new ChartBar(max > 0 ? Math.Max(3, (double)((bucket.TotalCostUsd ?? 0) / max) * 88) : 3,
-                $"{bucket.BucketStart.ToLocalTime():HH:mm} · {DisplayFormat.Cost(bucket.TotalCostUsd)} · {bucket.RequestCount} 次请求"));
+        ChartData = new TrendChartData(stats.Trend ?? []);
     }
 
     public void ApplyAnnouncements(AnnouncementsResponse response)
@@ -303,7 +297,7 @@ public partial class DashboardViewModel : ObservableObject
         _subscriptions = null; _stats = null; HasData = false; HasStats = false; IsDemo = false;
         NeedsLogin = true; IsStale = false; IsLoading = false;
         Plans.Clear(); SelectablePlans.Clear(); SelectedPlan = null; _nextSubscriptionTransition = null;
-        ChartBars.Clear(); Announcements.Clear(); RecentAnnouncements.Clear();
+        ChartData = new TrendChartData([]); Announcements.Clear(); RecentAnnouncements.Clear();
         _resetCards = null; _nextResetCardExpiry = null; ResetCards.Clear(); UsageDetails.Clear(); CacheDetails.Clear();
         CacheRateText = ResetCardsSummary = "—"; ResetCardsNote = "连接后加载重置卡。";
         UserName = "你的桌面用量助手"; UserEmail = "连接账号，随时掌握剩余额度"; AvatarText = "K";

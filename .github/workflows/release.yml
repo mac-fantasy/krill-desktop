@@ -37,6 +37,13 @@ jobs:
       - name: Verify Windows
         shell: pwsh
         run: ./scripts/windows/verify.ps1
+      - name: Upload Windows UI verification
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-ui-verification
+          path: artifacts/ui
+          if-no-files-found: ignore
       - name: Package Windows
         shell: pwsh
         env:

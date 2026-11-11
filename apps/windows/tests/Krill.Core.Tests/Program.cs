@@ -6,6 +6,27 @@ using Krill.Core;
 
 var tests = new (string Name, Func<Task> Run)[]
 {
+    ("Usage chart sorts before taking the latest 48 buckets and keeps local time ticks", () => Sync(() =>
+    {
+        var start = DateTimeOffset.Parse("2026-11-10T23:00:00Z", CultureInfo.InvariantCulture);
+        var source = Enumerable.Range(0, 60).Select(i => new TrendBucket { BucketStart = start.AddHours(i), TotalCostUsd = i }).ToArray();
+        var data = new TrendChartData(source.Reverse());
+        Equal(48, data.Buckets.Count); Equal(source[12], data.Buckets[0]); Equal(source[59], data.Buckets[^1]);
+        Equal("0,12,24,35,47", string.Join(",", data.AxisIndices));
+        var midnight = new TrendChartData(source.Take(2));
+        Equal("23:00", midnight.TimeLabel(0, TimeZoneInfo.Utc)); Equal("00:00", midnight.TimeLabel(1, TimeZoneInfo.Utc));
+        Equal(0, new TrendChartData([]).AxisIndices.Count());
+        Equal("0", string.Join(",", new TrendChartData(source.Take(1)).AxisIndices));
+    })),
+    ("Usage chart preserves unknown, zero and small costs with exact request counts", () => Sync(() =>
+    {
+        var start = DateTimeOffset.Parse("2026-11-10T23:00:00Z", CultureInfo.InvariantCulture);
+        var data = new TrendChartData(new decimal?[] { null, 0, -1, 0.0007m, 2 }.Select((cost, i) =>
+            new TrendBucket { BucketStart = start.AddHours(i), TotalCostUsd = cost, RequestCount = 12345 }));
+        Equal("3,3,3,3,88", string.Join(",", Enumerable.Range(0, 5).Select(data.BarHeight)));
+        Equal(true, data.Tooltip(0).Contains("费用 —")); Equal(true, data.Tooltip(1).Contains("费用 $0.00"));
+        Equal($"{DisplayFormat.LocalDate(start.AddHours(3))} · 费用 $0.0007 · 12345 次请求", data.Tooltip(3));
+    })),
     ("Stats decode cache counters, channel rates, requests and speed", () => Sync(() =>
     {
         var stats = JsonSerializer.Deserialize<ApiEnvelope<RequestStats>>(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "stats.json")), KrillJson.Options)!.Data!;

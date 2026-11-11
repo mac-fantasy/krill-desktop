@@ -8,6 +8,59 @@ import XCTest
 
 final class LoginWindowControllerTests: XCTestCase {
     @MainActor
+    func testCommandVPastesIntoSecureSessionFieldAndCommandAReplacesIt() async throws {
+        let application = NSApplication.shared
+        let previousMenu = application.mainMenu
+        application.mainMenu = ApplicationMenu.make()
+        let pasteboard = NSPasteboard.general
+        let previousContents = (pasteboard.pasteboardItems ?? []).map { item in
+            item.types.compactMap { type in item.data(forType: type).map { (type, $0) } }
+        }
+        defer {
+            application.mainMenu = previousMenu
+            pasteboard.clearContents()
+            let items = previousContents.map { contents in
+                let item = NSPasteboardItem()
+                for (type, data) in contents { item.setData(data, forType: type) }
+                return item
+            }
+            pasteboard.writeObjects(items)
+        }
+        let controller = LoginWindowController(store: DashboardStore(storage: try isolatedStorage(), demo: true))
+        controller.show()
+        defer { controller.close() }
+        let window = try XCTUnwrap(application.windows.first { $0.title == "连接 Krill 账号" && $0.isVisible })
+        let field = try XCTUnwrap(descendants(window.contentView!).compactMap { $0 as? NSSecureTextField }.first)
+        window.makeKeyAndOrderFront(nil)
+        XCTAssertTrue(window.makeFirstResponder(field))
+        let editor = try XCTUnwrap(field.currentEditor())
+        XCTAssertTrue(window.firstResponder === editor)
+        let menu = try XCTUnwrap(application.mainMenu)
+        // The command-line XCTest host cannot become the active application.
+        // Route its menu actions to the real secure field editor explicitly;
+        // production keeps nil targets for normal first-responder dispatch.
+        let edit = try XCTUnwrap(menu.items.last?.submenu)
+        for item in edit.items {
+            XCTAssertNil(item.target)
+            item.target = editor
+        }
+        func shortcut(_ key: String, code: UInt16) throws {
+            let event = try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .command,
+                timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber, context: nil,
+                characters: key, charactersIgnoringModifiers: key, isARepeat: false, keyCode: code))
+            XCTAssertTrue(menu.performKeyEquivalent(with: event))
+        }
+        for token in ["synthetic.header.signature", "replacement.payload.signature"] {
+            pasteboard.clearContents(); pasteboard.setString(token, forType: .string)
+            try shortcut("a", code: 0)
+            try shortcut("v", code: 9)
+            XCTAssertEqual(editor.string, token)
+        }
+        window.makeFirstResponder(nil)
+        XCTAssertEqual(field.stringValue, "replacement.payload.signature")
+    }
+
+    @MainActor
     func testBrowserGuideIsDefaultAndCanReopenWithoutStartingWebLogin() async throws {
         if ProcessInfo.processInfo.environment["KRILL_LOGIN_SCREENSHOT"] != nil {
             NSApplication.shared.setActivationPolicy(.accessory)

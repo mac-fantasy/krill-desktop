@@ -8,6 +8,7 @@ enum KrillApp {
         let delegate = AppDelegate()
         application.delegate = delegate
         application.setActivationPolicy(.accessory)
+        application.mainMenu = ApplicationMenu.make()
         // AppKit holds its delegate weakly; retain it throughout the event loop.
         withExtendedLifetime(delegate) { application.run() }
     }

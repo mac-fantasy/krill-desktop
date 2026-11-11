@@ -5,6 +5,9 @@ using System.Windows.Media.Imaging;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Threading;
+using System.Windows.Automation;
+using System.Windows.Input;
+using Krill.Desktop.Controls;
 using Krill.Core;
 
 namespace Krill.Desktop.Services;
@@ -37,6 +40,7 @@ internal static class UiVerifier
             checks.Add("render_" + names[i]);
         }
         Capture(app.Orb, Path.Combine(output, "orb.png"));
+        await VerifyUsageChart(app, output, checks);
         foreach (var side in new[] { OrbDockSide.Left, OrbDockSide.Right })
         {
             app.Orb.ExpandDocked();
@@ -157,6 +161,47 @@ internal static class UiVerifier
         bitmap.Render(visual);
         var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
         using var file = File.Create(path); encoder.Save(file);
+    }
+
+    private static async Task VerifyUsageChart(AppController app, string output, List<string> checks)
+    {
+        app.ViewModel.SelectedTab = 2;
+        await app.Panel.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
+        var chart = Descendants(app.Panel).OfType<UsageTrendChart>().Single();
+        var demo = app.ViewModel.ChartData;
+        if (!ReferenceEquals(chart.Data, demo) || demo.Buckets.Count == 0)
+            throw new InvalidOperationException("Usage chart data binding is missing.");
+        var start = DateTimeOffset.UtcNow;
+        app.ViewModel.ChartData = new TrendChartData(new decimal?[] { null, 0, 0.0007m, 2 }.Select((cost, i) =>
+            new TrendBucket { BucketStart = start.AddHours(i), TotalCostUsd = cost, RequestCount = 12345 }));
+        await app.Panel.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
+        app.Panel.UpdateLayout();
+        var plot = Descendants(chart).OfType<Grid>().Single(x => AutomationProperties.GetAutomationId(x) == "usageTrendPlot");
+        var readout = Descendants(chart).OfType<TextBlock>().Single(x => AutomationProperties.GetAutomationId(x) == "usageTrendReadout");
+        var height = chart.ActualHeight;
+        for (var i = 0; i < 4; i++)
+        {
+            var slot = Descendants(plot).OfType<Grid>().Single(x => AutomationProperties.GetAutomationId(x) == $"usageTrendBucket{i}");
+            // Hit-test the gap near the top, far above even the tallest bar.
+            var point = slot.TranslatePoint(new Point(1, 1), plot);
+            if (!ReferenceEquals(plot.InputHitTest(point), slot))
+                throw new InvalidOperationException("Whitespace above/between usage bars is not hoverable.");
+            slot.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, Environment.TickCount) { RoutedEvent = Mouse.MouseEnterEvent });
+            app.Panel.UpdateLayout();
+            if (readout.Text != chart.Data!.Tooltip(i) || chart.ActualHeight != height ||
+                Descendants(plot).OfType<System.Windows.Shapes.Line>().Count(x => x.Visibility == Visibility.Visible) != 1)
+                throw new InvalidOperationException("Usage hover did not show a stable readout and one selection guide.");
+            if (i == 2) Capture(app.Panel, Path.Combine(output, "usage-hover.png"));
+        }
+        plot.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, Environment.TickCount) { RoutedEvent = Mouse.MouseLeaveEvent });
+        if (readout.Text != "悬停图表查看时段、费用与请求数") throw new InvalidOperationException("Usage hover did not reset on leave.");
+        app.ViewModel.ChartData = new TrendChartData([]);
+        await app.Panel.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
+        app.Panel.UpdateLayout();
+        if (plot.IsVisible || !Descendants(chart).OfType<TextBlock>().Any(x => x.IsVisible && x.Text == "暂无时段统计"))
+            throw new InvalidOperationException("Empty usage chart is not explained.");
+        app.ViewModel.ChartData = demo;
+        checks.Add("usage_chart_full_height_hover_readout_axis_and_empty_state");
     }
 
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)

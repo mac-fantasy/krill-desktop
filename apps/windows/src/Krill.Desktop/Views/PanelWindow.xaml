@@ -179,11 +179,7 @@
                             </UniformGrid>
                             <Border Style="{StaticResource Card}" Margin="0,0,0,16">
                                 <StackPanel><TextBlock Text="时段费用" FontWeight="SemiBold" />
-                                    <ItemsControl ItemsSource="{Binding ChartBars}" Height="104" Margin="0,16,0,8" VerticalAlignment="Bottom">
-                                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Rows="1" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate><DataTemplate><Border Background="#7CE3CD" Opacity="0.8" CornerRadius="2,2,0,0" Height="{Binding Height}" VerticalAlignment="Bottom" Margin="2,0" ToolTip="{Binding Tooltip}" /></DataTemplate></ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                    <TextBlock Text="悬停柱形查看对应时段费用与请求数" Foreground="{StaticResource SubtleBrush}" FontSize="10" />
+                                    <c:UsageTrendChart Data="{Binding ChartData}" Margin="0,16,0,0" />
                                 </StackPanel>
                             </Border>
                             <Border Style="{StaticResource Card}"><StackPanel>
