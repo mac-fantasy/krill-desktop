@@ -236,33 +236,34 @@ impl Orb {
     pub fn verify_native(&mut self, cx: &mut Context<Self>) -> serde_json::Value {
         self.collapse_generation += 1;
         let tooltip = self.tooltip.is_some();
-        let result = self
-            .window
-            .update(cx, |_, window, _| -> anyhow::Result<bool> {
-                let original = native::rect(window)?;
-                let area = native::work_area(original)?;
-                let scale = native::scale(window);
-                let mut success = native::valid_orb_style(window);
-                let foreground =
-                    unsafe { windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow() };
-                for side in [Side::Left, Side::Right] {
-                    let expanded = geometry::docked(original, area, scale, side, false);
-                    native::move_resize(window, expanded)?;
-                    let collapsed = geometry::docked(expanded, area, scale, side, true);
-                    native::move_resize(window, collapsed)?;
-                    let actual = native::rect(window)?;
-                    success &= actual.width == (16. * scale).round() as i32
-                        && geometry::expanded_anchor(actual, scale, Some(side), true)
-                            == (expanded.left, expanded.top);
-                    native::move_resize(window, expanded)?;
-                    success &= native::rect(window)? == expanded;
-                }
-                native::move_resize(window, original)?;
-                success &= foreground
-                    == unsafe { windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow() };
-                Ok(success)
-            });
-        serde_json::json!({"success":tooltip && matches!(result,Ok(Ok(true))),"checks":["no_activate_tool_window","native_tooltip","left_and_right_collapse_expand","preserved_expanded_anchor","resize_does_not_steal_focus"]})
+        let result=self.window.update(cx, |_,window,_| -> anyhow::Result<serde_json::Value> {
+            let original=native::rect(window)?;
+            let area=native::work_area(original)?;
+            let scale=native::scale(window);
+            let style=native::valid_orb_style(window);
+            let foreground=unsafe {windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow()};
+            let mut observations=Vec::new();
+            for side in [Side::Left,Side::Right] {
+                let expanded=geometry::docked(original,area,scale,side,false);
+                native::move_resize(window,expanded)?;
+                let collapsed=geometry::docked(expanded,area,scale,side,true);
+                native::move_resize(window,collapsed)?;
+                let actual=native::rect(window)?;
+                let collapse=actual.width==(16.*scale).round() as i32 && geometry::expanded_anchor(actual,scale,Some(side),true)==(expanded.left,expanded.top);
+                native::move_resize(window,expanded)?;
+                let actual_expanded=native::rect(window)?;
+                let expand=actual_expanded==expanded;
+                observations.push(serde_json::json!({"side":format!("{side:?}"),"collapse":collapse,"expand":expand,"expected_collapsed":format!("{collapsed:?}"),"actual_collapsed":format!("{actual:?}"),"expected_expanded":format!("{expanded:?}"),"actual_expanded":format!("{actual_expanded:?}")}));
+            }
+            native::move_resize(window,original)?;
+            let focus=foreground==unsafe {windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow()};
+            let success=style && tooltip && focus && observations.iter().all(|o|o["collapse"]==true && o["expand"]==true);
+            Ok(serde_json::json!({"success":success,"no_activate_tool_window":style,"native_tooltip":tooltip,"resize_does_not_steal_focus":focus,"scale":scale,"docking":observations}))
+        });
+        match result {
+            Ok(Ok(value)) => value,
+            error => serde_json::json!({"success":false,"error":format!("{error:?}")}),
+        }
     }
 }
 impl Render for Orb {

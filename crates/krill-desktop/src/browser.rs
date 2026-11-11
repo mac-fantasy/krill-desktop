@@ -103,7 +103,7 @@ impl BrowserLogin {
         let browser = (|| -> Result<WebView> {
             let mut builder = build(windows.clone(), 0, None, smoke)?;
             if smoke {
-                builder=builder.with_html("<!doctype html><html><body>Krill OAuth regression<script>window.received=null;window.addEventListener('message',event=>window.received=event.data);</script></body></html>");
+                builder=builder.with_html("<!doctype html><html><body>Krill OAuth regression<script>window.received=null;window.addEventListener('message',event=>window.received=event.data);window.__krill_test_ready=true;</script></body></html>");
             }
             let view = builder.build_as_child(&*window)?;
             anyhow::ensure!(
@@ -271,10 +271,12 @@ impl BrowserLogin {
         let result=async {
             let ready=browser.update(cx,|browser,_|browser.webview.is_some());
             anyhow::ensure!(ready,"{}",browser.update(cx,|browser,_|browser.note.clone()));
-            for _ in 0..40 {
-                if Self::evaluate(&browser,0,"document.readyState",cx).await?=="\"complete\""{break;}
+            let mut ready=false;
+            for _ in 0..100 {
+                if Self::evaluate(&browser,0,"window.__krill_test_ready===true",cx).await?=="true"{ready=true;break;}
                 cx.background_executor().timer(Duration::from_millis(100)).await;
             }
+            anyhow::ensure!(ready,"Synthetic login document was not ready");
             let opened=Self::evaluate(&browser,0,"window.child=window.open('about:blank'); !!window.child",cx).await?;
             anyhow::ensure!(opened=="true","OAuth popup did not open");
             cx.background_executor().timer(Duration::from_millis(300)).await;
@@ -307,7 +309,10 @@ impl BrowserLogin {
                 if Self::evaluate(&browser,0,"window.received",cx).await?=="\"callback received\""{received=true;break;}
                 cx.background_executor().timer(Duration::from_millis(100)).await;
             }
-            anyhow::ensure!(received,"OAuth popup callback did not reach opener");
+            anyhow::ensure!(received,"OAuth popup callback did not reach opener; parent={}, child={}",
+                Self::evaluate(&browser,0,"JSON.stringify({ready:window.__krill_test_ready,received:window.received,url:location.href})",cx).await?,
+                Self::evaluate(&browser,popup,"JSON.stringify({opener:!!window.opener,closed:window.opener?.closed,url:location.href})",cx).await?);
+
             Self::evaluate(&browser,0,"window.child.close(); 'closed'",cx).await?;
             cx.background_executor().timer(Duration::from_millis(400)).await;
             anyhow::ensure!(browser.update(cx,|browser,_|browser.windows.popups.borrow().is_empty()),"Script did not close the OAuth popup independently");

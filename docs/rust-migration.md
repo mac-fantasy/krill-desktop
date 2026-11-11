@@ -1,42 +1,53 @@
-# Rust / GPUI migration
+# Rust / GPUI 迁移验收
 
-目标：用共享 Rust 业务、共享 GPUI UI 和 Rust 平台适配完整替换 C# / WPF 与 Swift / SwiftUI。macOS 仅支持 Apple Silicon，最低系统允许提高。功能等价验证后删除旧实现、过时脚本和构建产物。
+目标：共享 Rust 业务、共享 GPUI 界面和 Rust 平台适配替换 C# / WPF 与 Swift / SwiftUI。macOS 仅 Apple Silicon，最低 macOS 15。旧实现的完整快照保留在 `v0.1.8` tag。
 
-## 验收清单
+## 功能对照
 
-- [ ] 固定可构建的 GPUI / 组件版本，macOS arm64 与 Windows x64 原生构建。
-- [ ] 协议：数值字符串、十进制、未知值、8 MiB 响应限制、禁止重定向、固定凭据来源、错误分类。
-- [ ] 套餐：当前周期金额、积分、共享按次窗口、结转、余额、有效性、自动月卡切换及本地到期。
-- [ ] 统计：今日时区范围、缓存率、RPM/TPM、成功失败/思考 Tokens、渠道、最近48时段和悬停。
-- [ ] 重置卡、公告纯文本/未读、部分失败保留数据。
-- [ ] 状态：默认60秒、详情30秒、公告600秒、退避、唤醒、会话代次隔离、演示独立。
-- [ ] 共享五页界面、欢迎页、登录、固定/关闭面板、Esc、快捷键、退出确认。
-- [ ] 系统浏览器登录、脚本导出、JWT校验后保存；应用内临时WebView、OAuth共享弹窗/opener/独立关闭/来源限制。
-- [ ] macOS 菜单栏动态进度环、百分比、提示、右键、隐藏Dock、面板定位/失焦、登录项、材质设置。
-- [ ] Windows 托盘、无任务栏悬浮球、拖动、置顶、贴边收缩、悬停展开、多屏DPI、开机启动。
-- [ ] 兼容旧偏好、DPAPI entropy和Keychain身份；凭据不进入偏好和日志。
-- [ ] GitHub更新：版本/来源/大小/SHA-256/包身份、安装/回滚/重启，旧版更新兼容路径；保留旧mac包内部身份。
-- [ ] Rust构建/测试/打包脚本、GitHub工作流、macOS arm64发布和Homebrew迁移说明。
-- [ ] macOS实际运行和截图检查；Windows CI原生构建/行为检查。
-- [ ] 删除旧C#/Swift实现和专用工程/脚本；整理资源、文档、忽略规则；清理工作空间并检查git diff。
+| 范围 | Rust 实现与验证 |
+|---|---|
+| 依赖与构建 | Cargo workspace / lock；GPUI Kit 0.9.1、GPUI 0.3.12；两端原生构建，macOS 发布固定 arm64 |
+| 协议 | 数值字符串、精确 Decimal、未知值、8 MiB 上限、固定来源、禁止重定向、错误分类；共享合约测试 |
+| 套餐 | 当前周期金额/积分/按次、共享窗口、结转/余额、有效性、月卡自动切换及本地到期；合约与状态测试 |
+| 统计 | 本机今日范围、缓存口径、RPM/TPM、成功失败/思考 Tokens、渠道、最近 48 时段；整列空白悬停与固定读数区的 GPUI 事件测试 |
+| 重置卡与公告 | 状态、恢复上限/历史、适用订阅、纯文本摘要、未读及部分失败保留；共享合约测试 |
+| 状态 | 默认60秒、详情30秒、公告600秒、退避、唤醒后刷新、账号代次隔离、演示隔离 |
+| 共享界面 | 五页、欢迎页、登录、固定/关闭、失焦、Esc、退出账号确认；五页整区域点击与原生渲染图 |
+| 会话导入 | 系统浏览器、脚本导出、JWT 格式与 API 验证后保存；遮罩输入支持两端粘贴/全选并禁止复制 |
+| 应用内登录 | Wry；实际检查私有引擎后才导航；HTTPS 来源限制、OAuth opener/共享临时会话、postMessage、独立关闭/父关闭清理；真实引擎的合成页面测试 |
+| macOS | 进度环、百分比、提示、右键、隐藏Dock、图标所在屏幕定位/工作区限制、登录项；26+原生玻璃与15+模糊 |
+| Windows | 托盘、无激活悬浮球、原生拖动、置顶、88/16逻辑像素、650ms悬停展开/收缩、两侧锚点/多屏DPI、原生提示、开机启动、重复启动唤出已有面板 |
+| 本地兼容 | 原偏好路径与字段别名、DPAPI entropy、Keychain service/account；原子设置写入；凭据不进入偏好和日志 |
+| 更新 | 版本/精确来源/大小/SHA-256、解压路径/数量/大小、包身份/架构/签名；安装替换/回滚/参数引用测试 |
+| 打包发布 | Rust验证/打包脚本和GitHub工作流；Windows程序集元数据兼容旧更新器，macOS旧版手动迁移及Homebrew调整说明 |
 
-## 已知迁移约束
+## 证据与运行方式
 
-Windows 0.1.8 更新器强制检查.NET程序集DLL；纯Rust包必须设计兼容包或过渡升级，不可假定同名EXE就能更新。macOS旧更新器仅识别macos-universal附件并检查`com.krill.desktop.macos`和`Contents/MacOS/KrillMac`；新平台仅arm64时仍需明确旧用户路径。
+```bash
+cargo test --workspace --locked
+bash scripts/verify.sh
+bash scripts/build-macos.sh release
+```
 
-现有协议定义与合成样例为验收依据：`docs/protocol.md`、`contracts/fixtures`、`contracts/updates`。旧实现暂时作为对照保留，替代功能尚未验证时不可删除。
+```powershell
+./scripts/verify.ps1
+./scripts/build-windows.ps1
+```
 
-## 进展
+本机 Rust 测试30项（共享核心18、桌面11、包工具1），发布/安装器Python测试4项。Windows桌面测试还包含原生DPAPI和单实例检查。原生冒烟实际运行GPUI事件循环、GPU渲染与WKWebView/WebView2；`native-qa`生成五页PNG和`artifacts/rust-native/verification.json`，正式包不包含该功能。
 
-- 2026-11-11：检查当前v0.1.8代码、工具链和既有功能。Rust 1.99.1可用，开始建立Rust workspace与共享核心。
-- 首批实现：固定GPUI Kit 0.9.1；共享十进制模型、协议客户端、展示规则、套餐自动切换、账号状态和旧偏好别名；五页界面、默认浏览器会话导入、后台刷新与代次隔离；Keychain / DPAPI兼容代码；macOS菜单栏进度图标、右键菜单、弹出面板、登录项适配；Apple Silicon .app打包。
-- 本机验证：18项共享核心测试及5项客户端测试通过，包括真实GPUI事件分派下的五页签整区点击、整列空白悬停/移出、固定图表布局，以及遮罩输入框Command-V/Command-A/禁止复制行为。macOS原生debug构建和ad-hoc签名包通过，演示进程启动运行。系统界面自动化未获应用访问权限，尚未取得桌面截图。
-- 尚待实现/验证：Windows悬浮球/贴边/多屏和本机凭据适配；应用内WebView及OAuth弹窗；更新服务与旧版升级路径；材质设置；两端原生验收、正式工作流/文档替换；旧实现删除和工作空间清理。不能将当前里程碑视为完成重构。
-- 后续实现：共享更新服务（检查、受限下载、SHA-256、ZIP路径与大小、macOS包签名/架构/身份、Windows清单、原安装组件回滚/重启）；macOS 26+原生NSGlassEffectView与15+模糊回退；标准编辑菜单、登录项设置、Esc/关闭隐藏面板。macOS原生冒烟测试实际启动并依次切换五页，`artifacts/rust-native/verification.json`报告通过。
-- 远端原生CI已启动：分支`rust-gpui-refactor`，初始运行42975016672和修复后运行42975048187；以当前GitHub结果为准。测试宿主使用`gpui-pre`的test-support以避免GPUI Kit可选Fast测试依赖对未同步proptest版本的解析失败。
-- 下一阶段：完成Windows悬浮球（原88px/16px、650ms、无激活、多屏DPI、托盘显示隐藏）及设置；应用内临时WebView/OAuth；升级兼容包/发布脚本；补齐原生验证后再删除旧目录。当前CLI二进制暂名`KrillMac`，Windows发布需明确`Krill.Desktop.exe`名称和清单。
-- 当前证据：提交969a268的原生CI运行42975048187在macos-26、windows-latest均成功（这是更新服务接入前的快照）。更新服务接入后，本机`cargo test --workspace --locked`共26项通过，包括签名arm64应用的正向包校验、错误版本拒绝、ZIP穿越/路径别名拒绝。最新本机debug包构建与签名检查通过。
-- 原生冒烟命令：`target/debug/KrillMac --smoke-test --data-dir /tmp/krill-rust-smoke-data --output artifacts/rust-native`。该模式只用演示数据、逐页切换并自动退出；不等价于截图和鼠标人工验收。GPUI交互单测另行覆盖点击、悬停、快捷键。
-- Windows悬浮球已实现：88/16逻辑像素、650ms、无激活tool window、Win32原生拖动（GPUI Windows start_window_move为空）、两侧锚点、多屏工作区、DPI、置顶、托盘显示隐藏、旧坐标偏好与DPAPI测试。新增独立几何测试及Windows原生样式/尺寸/焦点检查；仍须以修复后的CI结果确认。
-- 应用内登录已接入Wry 0.57.2，主窗口/授权子窗口只允许HTTPS（子窗口初始about:blank例外），最多5个子窗口，共用私有会话并保留opener，双重来源检查后再验证会话。macOS子窗口单独UCC避免关闭消息误发给父窗口。最新本机原生冒烟包含真实WKWebView的opener、共享非持久会话、postMessage、脚本独立关闭和父关闭清理，六项均通过。
-- Windows兼容包采用Rust构建工具`tools/krill-package`生成无业务代码的.NET版本元数据DLL，以满足0.1.x更新器；本体无.NET运行依赖。新增Windows打包脚本及PowerShell AssemblyName版本校验；新客户端用清单/哈希校验。macOS旧版识别universal而新版仅arm64，应通过手动安装/Homebrew迁移一次，避免将arm64冒充universal推送给旧Intel用户。
+macOS原生回归、五页渲染、WebKit弹窗和Apple Silicon签名打包已多轮通过。Windows在原生CI验证；曾发现并修复测试专用窗口API误用、平台条件编译遗漏，以及GPUI与应用重复嵌入清单的链接冲突。最终以分支最新 [Rust 工作流](https://github.com/mac-fantasy/krill-desktop/actions/workflows/rust.yml) 结果为准。
+
+## 升级约束与验证边界
+
+Windows旧更新器检查.NET程序集DLL。构建工具仅生成版本元数据标记，运行时不加载DLL、不依赖.NET；PowerShell实际读取AssemblyName以验证旧更新器的兼容路径。新程序通过清单、摘要和包身份校验。
+
+macOS旧更新器只识别universal附件。0.2.0只发布arm64，需手动安装一次；不得将arm64冒充universal。bundle ID、内部可执行名、钥匙串身份和偏好路径保留。Homebrew tap需同步架构、系统要求与附件名。
+
+合成测试不需要真实账号。真实Krill/第三方登录服务商风控、跨版本联网下载重启、实体多屏热插拔和不同显卡驱动仍是实际环境验收范围，不能用合成页面通过来代替。
+
+## 收尾
+
+- [ ] 最新Windows和macOS原生CI均通过。
+- [ ] 删除旧`apps/`、C#/Swift工程和专用脚本，只保留共享资源与安装器回归。
+- [ ] 清理旧产物与中间缓存，保留当前可审阅的构建结果，检查工作区与git diff。
