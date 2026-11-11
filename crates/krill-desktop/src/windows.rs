@@ -159,7 +159,7 @@ pub fn move_resize(window: &Window, r: Rect) -> Result<()> {
             r.top,
             r.width,
             r.height,
-            SWP_NOACTIVATE | SWP_NOZORDER,
+            SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOSENDCHANGING,
         )?;
     }
     Ok(())
@@ -211,6 +211,21 @@ pub fn configure(window: &Window, no_activate: bool, topmost: bool) -> Result<()
             )
             .as_bool(),
             "Unable to configure borderless utility window"
+        );
+        let style = GetWindowLongPtrW(hwnd, GWL_STYLE);
+        SetWindowLongPtrW(
+            hwnd,
+            GWL_STYLE,
+            (style
+                & !((WS_SYSMENU
+                    | WS_MINIMIZEBOX
+                    | WS_MAXIMIZEBOX
+                    | WS_THICKFRAME
+                    | WS_CAPTION
+                    | WS_BORDER
+                    | WS_DLGFRAME)
+                    .0 as isize))
+                | WS_POPUP.0 as isize,
         );
         let mut style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) | WS_EX_TOOLWINDOW.0 as isize;
         style &= !(WS_EX_APPWINDOW.0 as isize);
@@ -286,8 +301,18 @@ pub fn release_capture() {
 }
 pub fn valid_orb_style(window: &Window) -> bool {
     hwnd(window).is_ok_and(|hwnd| unsafe {
+        use windows::Win32::Foundation::{LPARAM, WPARAM};
         let s = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32;
-        s & WS_EX_TOOLWINDOW.0 != 0 && s & WS_EX_NOACTIVATE.0 != 0 && s & WS_EX_APPWINDOW.0 == 0
+        s & WS_EX_TOOLWINDOW.0 != 0
+            && s & WS_EX_NOACTIVATE.0 != 0
+            && s & WS_EX_APPWINDOW.0 == 0
+            && SendMessageW(
+                hwnd,
+                WM_MOUSEACTIVATE,
+                Some(WPARAM(0)),
+                Some(LPARAM(((WM_LBUTTONDOWN << 16) | HTCLIENT) as isize)),
+            )
+            .0 == MA_NOACTIVATE as isize
     })
 }
 pub fn place_panel(window: &Window, anchor: Rect) -> Result<()> {

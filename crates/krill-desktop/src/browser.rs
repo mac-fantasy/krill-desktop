@@ -103,7 +103,7 @@ impl BrowserLogin {
         let browser = (|| -> Result<WebView> {
             let mut builder = build(windows.clone(), 0, None, smoke)?;
             if smoke {
-                builder=builder.with_html("<!doctype html><html><body>Krill OAuth regression<script>window.received=null;window.addEventListener('message',event=>window.received=event.data);window.__krill_test_ready=true;</script></body></html>");
+                builder = builder.with_url("about:blank");
             }
             let view = builder.build_as_child(&*window)?;
             anyhow::ensure!(
@@ -271,6 +271,10 @@ impl BrowserLogin {
         let result=async {
             let ready=browser.update(cx,|browser,_|browser.webview.is_some());
             anyhow::ensure!(ready,"{}",browser.update(cx,|browser,_|browser.note.clone()));
+            // Install the synthetic callback on a loaded blank document. A
+            // NavigateToString document has engine-specific origin/inline-script
+            // behavior; this check exercises actual window.opener/postMessage.
+            Self::evaluate(&browser,0,"window.received=null;window.addEventListener('message',event=>window.received=event.data);window.__krill_test_ready=true;true",cx).await?;
             let mut ready=false;
             for _ in 0..100 {
                 if Self::evaluate(&browser,0,"window.__krill_test_ready===true",cx).await?=="true"{ready=true;break;}
