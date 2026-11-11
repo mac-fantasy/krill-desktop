@@ -1,4 +1,4 @@
-name: Rust migration
+name: Rust CI
 
 on:
   push:
@@ -35,7 +35,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}
+          key: rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}-release-v2
           restore-keys: rust-${{ runner.os }}-${{ runner.arch }}-
       - name: Check formatting
         run: cargo fmt --all --check
@@ -63,16 +63,22 @@ jobs:
           if (-not $result.success) { throw 'Native smoke verification did not succeed.' }
       - name: Package Apple Silicon app
         if: runner.os == 'macOS'
-        run: bash scripts/build-macos.sh debug
+        run: bash scripts/build-macos.sh release
       - name: Package Windows and verify legacy upgrade metadata
         if: runner.os == 'Windows'
         shell: pwsh
-        run: ./scripts/build-windows.ps1 -Configuration debug
+        run: ./scripts/build-windows.ps1 -Configuration release
       - uses: actions/upload-artifact@v4
         if: runner.os == 'macOS'
         with:
-          name: rust-macos-arm64-debug
-          path: dist/Krill.Desktop-*-macos-arm64-debug
+          name: rust-macos-arm64-release
+          path: dist/Krill.Desktop-*-macos-arm64.zip
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows'
+        with:
+          name: rust-windows-x64-release
+          path: dist/Krill.Desktop-*-win-x64.zip
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()
@@ -87,4 +93,4 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}
+          key: rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}-release-v2
