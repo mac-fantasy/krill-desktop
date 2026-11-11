@@ -292,3 +292,105 @@ pub fn startup_enabled() -> bool {
     .is_ok()
         && size > 2
 }
+
+// A separate native tooltip can extend beyond the small orb window. A tooltip
+// rendered inside the 88px GPUI surface would be clipped to that surface.
+pub struct Tooltip {
+    window: HWND,
+    owner: HWND,
+    text: Vec<u16>,
+}
+impl Tooltip {
+    pub fn new(owner: &Window, text: &str) -> Result<Self> {
+        use windows::Win32::{
+            Foundation::{LPARAM, WPARAM},
+            UI::Controls::*,
+        };
+        let hwnd = hwnd(owner)?;
+        unsafe {
+            let controls = INITCOMMONCONTROLSEX {
+                dwSize: std::mem::size_of::<INITCOMMONCONTROLSEX>() as u32,
+                dwICC: ICC_WIN95_CLASSES,
+            };
+            anyhow::ensure!(
+                InitCommonControlsEx(&controls).as_bool(),
+                "Unable to initialize native controls"
+            );
+            let window = CreateWindowExW(
+                WS_EX_TOPMOST | WS_EX_NOACTIVATE,
+                TOOLTIPS_CLASSW,
+                None,
+                WS_POPUP | WINDOW_STYLE(TTS_ALWAYSTIP | TTS_NOPREFIX),
+                0,
+                0,
+                0,
+                0,
+                Some(hwnd),
+                None,
+                None,
+                None,
+            )?;
+            let mut tooltip = Self {
+                window,
+                owner: hwnd,
+                text: text.encode_utf16().chain(Some(0)).collect(),
+            };
+            let info = tooltip.info();
+            if SendMessageW(
+                window,
+                TTM_ADDTOOLW,
+                Some(WPARAM(0)),
+                Some(LPARAM(&info as *const _ as isize)),
+            )
+            .0 == 0
+            {
+                anyhow::bail!("Unable to register orb tooltip");
+            }
+            SendMessageW(
+                window,
+                TTM_SETMAXTIPWIDTH,
+                Some(WPARAM(0)),
+                Some(LPARAM((360. * scale(owner)) as isize)),
+            );
+            Ok(tooltip)
+        }
+    }
+    fn info(&mut self) -> windows::Win32::UI::Controls::TTTOOLINFOW {
+        use windows::Win32::UI::Controls::*;
+        TTTOOLINFOW {
+            cbSize: std::mem::size_of::<TTTOOLINFOW>() as u32,
+            uFlags: TTF_IDISHWND | TTF_SUBCLASS,
+            hwnd: self.owner,
+            uId: self.owner.0 as usize,
+            lpszText: windows::core::PWSTR(self.text.as_mut_ptr()),
+            ..Default::default()
+        }
+    }
+    pub fn update(&mut self, text: &str) {
+        use windows::Win32::{
+            Foundation::{LPARAM, WPARAM},
+            UI::Controls::TTM_UPDATETIPTEXTW,
+        };
+        let text: Vec<u16> = text.encode_utf16().chain(Some(0)).collect();
+        if text == self.text {
+            return;
+        }
+        self.text = text;
+        let info = self.info();
+        unsafe {
+            SendMessageW(
+                self.window,
+                TTM_UPDATETIPTEXTW,
+                Some(WPARAM(0)),
+                Some(LPARAM(&info as *const _ as isize)),
+            );
+        }
+    }
+}
+impl Drop for Tooltip {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = DestroyWindow(self.window);
+        }
+    }
+}

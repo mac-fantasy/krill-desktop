@@ -63,6 +63,7 @@ pub struct Dashboard {
     _subscriptions: Vec<gpui_kit::Subscription>,
     launch_at_login: bool,
     launch_approval: bool,
+    settings_note: String,
     updater: updates::UpdateState,
     #[cfg(target_os = "windows")]
     _instance: Option<crate::windows_native::Instance>,
@@ -216,6 +217,7 @@ impl Dashboard {
             _subscriptions: vec![activation],
             launch_at_login,
             launch_approval,
+            settings_note: String::new(),
             updater: updates::UpdateState::default(),
             #[cfg(target_os = "windows")]
             _instance: None,
@@ -1179,9 +1181,16 @@ impl Dashboard {
         column()
             .child(heading("按你的习惯来"))
             .child(label("设置自动保存，仅作用于当前设备。"))
+            .when(!self.settings_note.is_empty(), |d| {
+                d.child(label(self.settings_note.clone()))
+            })
             .child(
                 card()
-                    .child("菜单栏与面板")
+                    .child(if cfg!(target_os = "windows") {
+                        "悬浮球与面板"
+                    } else {
+                        "菜单栏与面板"
+                    })
                     .when(cfg!(target_os = "windows"), |d| {
                         d.child(
                             Button::new("always-on-top")
@@ -1242,20 +1251,22 @@ impl Dashboard {
                                 })),
                         )
                     })
-                    .child(
-                        Button::new("percentage")
-                            .ghost()
-                            .label(format!(
-                                "{} 在图标旁显示百分比或余额",
-                                check(self.state.preferences.show_percentage)
-                            ))
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.state.preferences.show_percentage =
-                                    !this.state.preferences.show_percentage;
-                                this.save();
-                                cx.notify();
-                            })),
-                    )
+                    .when(cfg!(target_os = "macos"), |d| {
+                        d.child(
+                            Button::new("percentage")
+                                .ghost()
+                                .label(format!(
+                                    "{} 在图标旁显示百分比或余额",
+                                    check(self.state.preferences.show_percentage)
+                                ))
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.state.preferences.show_percentage =
+                                        !this.state.preferences.show_percentage;
+                                    this.save();
+                                    cx.notify();
+                                })),
+                        )
+                    })
                     .child(
                         Button::new("pin-setting")
                             .ghost()
@@ -1277,13 +1288,14 @@ impl Dashboard {
                             .on_click(cx.listener(|this, _, _, cx| {
                                 match platform::set_launch_at_login(!this.launch_at_login) {
                                     Ok(()) => {
+                                        this.settings_note.clear();
                                         (this.launch_at_login, this.launch_approval) =
                                             platform::launch_status();
                                         this.state.preferences.start_with_windows =
                                             this.launch_at_login;
                                         this.save();
                                     }
-                                    Err(e) => this.state.status_detail = e.to_string(),
+                                    Err(e) => this.settings_note = e.to_string(),
                                 }
                                 cx.notify();
                             })),
@@ -1421,6 +1433,7 @@ impl Dashboard {
         column().child(heading("连接 Krill 账号"))
             .child(label("在默认浏览器中登录，支持官网任意登录方式及二次登录。"))
             .child(Button::new("browser").primary().label("在浏览器中登录 ↗").on_click(|_,_,cx|cx.open_url(LOGIN_URL)))
+            .when(cfg!(target_os="windows"), |d|d.child(Button::new("webview-runtime").ghost().label("获取 WebView2 Runtime ↗").on_click(|_,_,cx|cx.open_url("https://developer.microsoft.com/microsoft-edge/webview2/"))))
             .child(Button::new("embedded-browser").ghost().label("改用应用内登录").disabled(self.state.demo_only).on_click(cx.listener(|this,_,_,cx|this.open_embedded(cx))))
             .child(label("1. 在浏览器中完成 Krill 登录。\n2. 在 Krill 官网打开开发者工具的控制台，运行下方按钮复制的脚本。\n3. 复制弹出的会话，粘贴到下面并连接。\n\n会话等同于登录凭据，请勿分享。"))
             .child(Button::new("export").label("复制会话导出脚本").on_click(|_,_,cx|cx.write_to_clipboard(ClipboardItem::new_string(EXPORT_SCRIPT.into()))))

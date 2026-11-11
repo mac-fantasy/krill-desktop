@@ -17,6 +17,7 @@ pub struct Orb {
     snap: bool,
     topmost: bool,
     window: AnyWindowHandle,
+    tooltip: Option<native::Tooltip>,
     _subscriptions: Vec<Subscription>,
 }
 pub fn open(
@@ -70,7 +71,11 @@ impl Orb {
                     this.schedule_collapse(cx);
                 }
             }
-            let _ = native::tooltip(window, &root.read(cx).state.tooltip());
+            let text = root.read(cx).state.tooltip();
+            let _ = native::tooltip(window, &text);
+            if let Some(tooltip) = &mut this.tooltip {
+                tooltip.update(&text);
+            }
             cx.notify();
         });
         let bounds = cx.observe_window_bounds(window, |this, window, cx| {
@@ -111,6 +116,7 @@ impl Orb {
             snap: prefs.snap_to_edge,
             topmost: prefs.always_on_top,
             window: window.window_handle(),
+            tooltip: native::Tooltip::new(window, &root.read(cx).state.tooltip()).ok(),
             _subscriptions: vec![observer, bounds],
         };
         this.snap_to_edge(window, false);
@@ -229,6 +235,7 @@ impl Orb {
     }
     pub fn verify_native(&mut self, cx: &mut Context<Self>) -> serde_json::Value {
         self.collapse_generation += 1;
+        let tooltip = self.tooltip.is_some();
         let result = self
             .window
             .update(cx, |_, window, _| -> anyhow::Result<bool> {
@@ -255,7 +262,7 @@ impl Orb {
                     == unsafe { windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow() };
                 Ok(success)
             });
-        serde_json::json!({"success":matches!(result,Ok(Ok(true))),"checks":["no_activate_tool_window","left_and_right_collapse_expand","preserved_expanded_anchor","resize_does_not_steal_focus"]})
+        serde_json::json!({"success":tooltip && matches!(result,Ok(Ok(true))),"checks":["no_activate_tool_window","native_tooltip","left_and_right_collapse_expand","preserved_expanded_anchor","resize_does_not_steal_focus"]})
     }
 }
 impl Render for Orb {
@@ -400,12 +407,6 @@ impl Render for Orb {
             .debug_selector(|| "orb".into())
             .size_full()
             .cursor_pointer()
-            .tooltip({
-                let tooltip = state.as_ref().map(|s| s.tooltip()).unwrap_or_default();
-                move |window, cx| {
-                    gpui_kit::component::tooltip::Tooltip::new(tooltip.clone()).build(window, cx)
-                }
-            })
             .child(visual)
             .on_hover(cx.listener(|this, hover: &bool, window, cx| {
                 this.hovered = *hover;

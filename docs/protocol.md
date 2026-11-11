@@ -1,6 +1,6 @@
 # 两端协议与展示约定
 
-网站来源固定为 `https://www.krill-code.com`。这份约定来自当前 Windows 实现与已有 HAR 分析；并非网站对外承诺的稳定 API。
+网站来源固定为 `https://www.krill-code.com`。这份约定来自 0.1.x 客户端、已有 HAR 分析与共享合约测试；并非网站对外承诺的稳定 API。
 
 ## 请求
 
@@ -18,7 +18,7 @@
 
 ## 金额与额度
 
-- 服务端金额可能为 JSON number、数字字符串或 null；Windows 使用 `decimal`，Swift 使用 `Decimal`。缺失值为未知，显示 `—`。
+- 服务端金额可能为 JSON number、数字字符串或 null；共享 Rust 核心使用 `rust_decimal::Decimal`。缺失值为未知，显示 `—`。
 - 当前周期使用 `quota.daily_limit_usd`、`used_usd`、`remaining_usd`；即使是周 / 月套餐，额度上限字段也可能仍叫 `daily_limit_usd`。不要改用订阅生命周期的 `total_*` 字段。
 - `billing_type` 为 `usd_daily` / `usd_weekly` / `usd_monthly` 时分别显示本日 / 本周 / 本月额度；其他金额型周期显示“当前周期额度”。
 - `request_count` 使用 `limit_requests` / `used_requests` / `remaining_requests`，单位为次。积分套餐使用 `limit_credits`（缺失时回退到 `plan.total_credits`）、`used_credits` / `remaining_credits`。未知字段不推断额度。

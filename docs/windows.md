@@ -1,120 +1,40 @@
 # Krill Desktop · Windows
 
-以下开发命令均从仓库根目录执行。跨平台目录说明见 [README](../README.md)。
+0.2.0 起使用 Rust / GPUI，与 macOS 共用业务和界面。面向 Windows 10 / 11 x64，需要支持 DirectX 11 的驱动；应用内登录另需 Microsoft Edge WebView2 Runtime。程序本身无需 .NET。
 
-Windows 上的 Krill 账号用量助手：悬浮球常驻桌面，点击展开原生详情面板，快速查看套餐剩余、余额、今日用量和公告。
+完整解压 ZIP 后运行 `Krill.Desktop.exe`。默认启动显示详情，`--background` 只常驻。相同数据目录的重复启动会唤出已有面板。`--demo` 运行独立演示账号，`--data-dir PATH` 可指定本地数据目录。
 
-技术栈：.NET 10 LTS、WPF、CommunityToolkit.Mvvm、WebView2。界面与后台请求均在本机运行，无额外服务端。
+## 悬浮球和面板
 
-## 使用
+- 88 个逻辑像素的圆球显示所选有效套餐剩余百分比；无有效套餐时显示充值余额，未知数据显示 `—`。
+- 左键拖动移动，点击切换面板，右键显示原生菜单。悬浮球不激活、不占任务栏，可设置置顶。
+- 开启贴边后靠左/右边缘收缩为 16 个逻辑像素宽的竖条；移入展开，移开约 650 毫秒后收缩。保存展开位置，按目标屏幕工作区与 DPI 定位。
+- 详情支持固定、失焦隐藏、`Esc` 隐藏及标题区域拖动。托盘提供打开面板、显示/隐藏悬浮球、刷新、检查更新、官网和退出。
+- 系统启动项使用当前用户注册表 `Run/KrillDesktop`，带 `--background`。设置操作不请求管理员权限。
 
-1. 将发布 ZIP 完整解压到一个目录，运行 `Krill.Desktop.exe`。自包含版本不需要另外安装 .NET。
-2. 在面板中点击“连接 Krill 账号”，使用默认浏览器完成官网任意登录方式及二次验证，再按指引导入会话；也可选择应用内登录。连接成功后登录窗口自动关闭。
-3. 单击悬浮球展开或收起面板；拖动悬浮球改变位置。面板按 `Esc` 收起，后台继续运行。
-   开启贴边时，球体靠左 / 右边缘后自动收缩为 16 个逻辑像素宽的进度竖条，从底部向上显示当前套餐剩余比例。鼠标移入展开为圆球，移开约 0.65 秒后收起；直接点击仍可进入详情。关闭贴边选项恢复圆球。
-4. 在“套餐”页选择悬浮球显示的套餐。在“设置”页调整置顶、贴边、固定面板、后台刷新和开机启动。
-5. 托盘菜单提供显示 / 隐藏悬浮球、打开面板、刷新、打开官网和退出程序。
+共享用量图最近 48 个时段按本机时区排序，悬停整列及柱子上方空白均可读取时段、费用、请求数。上方读数区高度固定，移出恢复提示，零和未知费用仍可悬停。金额使用 Rust Decimal，不经浮点数解析；详细规则见 [协议](protocol.md)。
 
-默认浏览器入口可以复用已有 Krill / GitHub / Apple 等登录状态。官网目前没有桌面授权回传接口，因此需要在登录后的 Krill 页面打开开发者工具控制台（Chrome / Edge 为 `Ctrl+Shift+J`，Firefox 为 `Ctrl+Shift+K`），运行窗口提供的导出脚本，将弹出的 Krill 会话粘贴到客户端。脚本只读取精确官网来源的会话并弹出复制框，不发送网络请求；客户端验证账号后使用 DPAPI 保存。
+## 登录与本地数据
 
-可选的应用内登录依赖 Microsoft Edge WebView2 Runtime。缺失时程序会提示，并提供微软官方下载页面入口；默认浏览器登录仍可使用。程序不会自动安装运行时。
+默认浏览器登录可复用已有网站登录状态，按指引导入会话；输入框支持 `Ctrl+V` / `Ctrl+A`，遮罩会话不能复制。应用内 WebView2 使用 InPrivate，共享本次授权弹窗的环境并保留 opener，关闭主登录窗口清理子窗口。只在精确 Krill 来源读取 token，并在验证身份成功后保存。
 
-## 展示与刷新规则
+账号目录 `%LOCALAPPDATA%\KrillDesktop\Account`，演示目录为同级 `Demo`。`session.dat` 沿用旧版当前用户 DPAPI 及 entropy `Krill.Desktop/session/v1`；`settings.json` 兼容旧 PascalCase 字段。设置文件不包含 token，演示不会加载/保存真实凭据。
 
-- 悬浮球显示所选有效套餐的当前周期剩余百分比。没有有效套餐时显示充值余额；未知数据显示 `—`。
-- 充值余额、福利余额和结转额度分别显示。金额沿用官网的 USD 口径，使用 `decimal` 解析。
-- 日 / 周 / 月额度依据服务端套餐类型及周期字段展示。重置时间使用服务端返回值，并转为本机时区显示。
-- 当前月卡额度用尽或到期时，优先切换其他已生效且可用的月卡并保存选择；不可用卡片保留置灰，显示“已到期”“额度已用尽”等状态。未知额度不当作零，有可用结转时仍可使用。生效 / 到期时间在本地检查，额度消耗随接口刷新更新。
-- 常驻默认每 60 秒同步核心数据，展开面板时最多每 30 秒同步。详细统计在面板展开时加载，公告约每 10 分钟检查一次。
-- 请求失败后逐步延长重试间隔，保留当前进程最近一次成功读取的数据，并标记离线。HTTP 401 或业务 401 提示重新登录。
-- 狂蹬卡等按次套餐显示账号共享的 5 小时、周、月请求限额；悬浮球显示已知窗口中最紧张的一档剩余比例。套餐页还显示重置卡状态、恢复上限、有效期及使用记录，使用操作前往官网。
-- 用量页显示成功 / 失败请求、RPM / TPM、思考 Tokens、缓存读写与渠道缓存率；缓存率使用官网统计口径，缺失值显示 `—`。重置卡接口失败时保留当前账号的旧数据，退出或切换账号时清空。
-- 公告以原生文字展示标题与摘要，点击打开官网完整内容。首版显示最近 50 条公告。
-- 按次 / 积分类套餐仅在返回了可识别的额度字段时显示具体用量；未知字段保留 `—`，可前往官网核对。
+## 开发、验证与打包
 
-“今日用量”使用本机时区当天零点至当前时间的统计范围，与套餐额度的计费窗口分别计算。
-
-时段费用图与 macOS 使用相同交互：按时间排序，最多展示最近 48 个时段，并显示本机时区的时间刻度。悬停整列区域（包括柱子上方和柱间空白）时，上方固定区域即时显示日期、时间、费用和请求数，同时高亮当前柱并显示竖向定位线；移出后恢复提示。零费用和未知费用同样可以查看，未知费用显示 `—`，没有时段数据时显示“暂无时段统计”。
-
-## 演示模式
+安装 Rust 1.92+ MSVC 工具链、Visual Studio C++ Build Tools、Windows SDK。
 
 ```powershell
-.\Krill.Desktop.exe --demo
+cargo test --workspace --locked
+cargo run --locked -- --demo --show
+./scripts/verify.ps1
+./scripts/build-windows.ps1 -Configuration release
 ```
 
-演示模式使用代码生成的虚构数据，界面显示“演示数据”，不会读取 HAR 中的凭据，也不会请求个人账号接口。演示模式与正常模式的默认数据目录分开。
+`verify.ps1` 运行合约、GPUI 点击/悬停/快捷键测试、DPAPI 测试、更新安装回滚测试、原生悬浮球窗口和 WebView2 OAuth 合成验证，并生成原生页面截图与 `artifacts/rust-native/verification.json`。
 
-## 本地数据与登录
+打包脚本生成 `dist/Krill.Desktop-X.Y.Z-win-x64.zip`，可用 `-Version X.Y.Z` 覆盖默认 `VERSION`。程序嵌入图标、文件版本、PerMonitorV2 DPI 清单。构建用二进制沿用 `KrillMac` 名称，发布复制为 `Krill.Desktop.exe`。
 
-默认目录：
+旧更新器通过程序集 DLL 读取版本，因此 Rust 构建工具额外生成仅含版本元数据的 `Krill.Desktop.dll`，打包时用 PowerShell `AssemblyName` 读取验证。客户端不加载此 DLL，也不依赖 .NET；新更新器使用 `krill-package.json`、附件大小与 SHA-256 校验包。
 
-- 正常模式：`%LOCALAPPDATA%\KrillDesktop\Account`
-- 演示模式：`%LOCALAPPDATA%\KrillDesktop\Demo`
-
-`settings.json` 保存位置与展示偏好；`session.dat` 使用 Windows DPAPI 按当前用户加密保存 Krill 会话。退出账号会清除本机凭据和当前面板数据。桌面端退出不会撤销官网或 GitHub 中已有的登录。
-
-应用内登录 WebView2 使用 InPrivate 模式，与默认浏览器独立；允许第三方 HTTPS 跳转及共享本次会话的授权弹窗，保留 `window.opener` 与脚本关闭窗口的行为。主窗口关闭时一并销毁弹窗，不保留可复用的第三方浏览会话。程序只在精确的 `https://www.krill-code.com` 来源中读取 Krill 会话，并通过 `/api/auth/me` 确认身份。凭据仅发送至固定的 Krill API 域名，HTTP 客户端不自动跟随重定向。
-
-诊断日志只记录事件名和异常类型，不记录请求头、请求体、响应内容、授权码或 token。HAR 只作为本地协议参考，已在 `.gitignore` 中排除，不参与打包。
-
-## 开发
-
-需要 .NET 10 SDK，Windows x64。
-
-```powershell
-dotnet build Krill.Desktop.slnx -c Release
-dotnet run --project apps/windows/src/Krill.Desktop -- --demo
-```
-
-项目结构：
-
-```text
-apps/windows/src/Krill.Core          接口客户端、协议模型、额度投影、显示规则、虚构样例
-apps/windows/src/Krill.Desktop       WPF 界面、登录窗口、托盘、本地存储、刷新与窗口定位
-apps/windows/tests/Krill.Core.Tests  无外部测试框架依赖的契约检查程序
-scripts/windows/verify.ps1          构建、契约检查、原生界面状态与渲染检查
-scripts/windows/publish.ps1         Windows x64 发布与压缩打包
-```
-
-## 检查
-
-```powershell
-# 构建、离线契约检查与演示界面检查
-.\scripts\verify.ps1
-
-# 额外检查本地 HAR 响应兼容性，以及匿名的公开公告接口
-.\scripts\verify.ps1 -HarPath .\record.har -LivePublic
-```
-
-也可单独运行核心检查：
-
-```powershell
-dotnet run --project apps/windows/tests/Krill.Core.Tests -c Release
-```
-
-界面检查运行真实 WPF 窗口，以虚构数据验证五个页签的渲染、用量图表空白区域命中与悬停读数、套餐切换对悬浮球的更新、离线保留数据、会话失效、退出清理及 DPAPI 往返。截图和结果写入 `artifacts/ui`，发布工作流将其保存在 `windows-ui-verification` 附件中。它不代替真实鼠标、托盘和多屏 DPI 操作的人工验收。
-
-检查模式使用单独的 `SmokeTest` 数据子目录，不会覆盖正常账号凭据。
-
-Windows 的检查程序包含 30 项核心与更新契约检查（含五份与 Swift 共用的合成协议样例）、更新安装组件的替换 / 参数 / 回滚检查和 21 项 WPF 状态 / 渲染检查。此前已额外验证本地 HAR 中 5 份核心响应的类型兼容，以及匿名公开公告接口。真实 GitHub 登录、真实账号接口联调、登录恢复与失效周期，以及鼠标拖动 / 多屏体验，仍需实际使用验证。
-
-## 发布
-
-```powershell
-.\scripts\publish.ps1
-```
-
-默认生成自包含版本：
-
-- `dist/Krill.Desktop-0.1.4-win-x64/Krill.Desktop.exe`
-- `dist/Krill.Desktop-0.1.4-win-x64.zip`
-
-可添加 `-FrameworkDependent` 生成依赖系统 .NET 10 Desktop Runtime 的版本，输出目录与压缩包带 `framework-dependent` 后缀。
-
-根目录 `scripts/verify.ps1` 与 `scripts/publish.ps1` 为兼容入口，将参数转发至 `scripts/windows/`。发布目录中的旧程序不会因源码目录整理自动更新，且运行中的发布包不会被源码验证任务关闭。
-
-默认版本读取仓库根目录 `VERSION`，可使用 `-Version 0.1.5` 覆盖。推送 `vX.Y.Z` tag 后自动测试、构建并发布两端安装包，详见 [版本发布与应用更新](releases.md)。
-
-账号模式启动后及每 6 小时自动检测 GitHub 正式 Release，托盘菜单和设置页也提供“检查更新”。发现新版后点击“下载并重启更新”，校验 SHA-256 和包内版本后替换程序；失败时尝试恢复原版本。应用目录需可写。详情面板打开时不默认聚焦按钮，保留键盘导航。
-
-首版为个人客户端。接口来自官网当前前端与 HAR，未发现网站对这些接口提供长期兼容承诺；发生协议变化时应更新 `KrillApiClient` 和 DTO。会话失效后通过官网重新登录。
+原生 CI 可验证窗口样式、左右贴边尺寸和锚点、调整窗口不抢焦点、真实 WebView2 弹窗和私有环境。多台实体显示器、不同驱动、真实第三方登录和跨版本联网安装仍需在实际用户环境验收。
