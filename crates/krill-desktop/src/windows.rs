@@ -184,6 +184,9 @@ unsafe extern "system" fn utility_window_proc(
             return LRESULT(0);
         }
         if no_activate != 0 {
+            if message == WM_SIZE {
+                let _ = shape_orb(hwnd);
+            }
             if message == WM_MOUSEACTIVATE {
                 return LRESULT(MA_NOACTIVATE as isize);
             }
@@ -248,8 +251,58 @@ pub fn configure(window: &Window, no_activate: bool, topmost: bool) -> Result<()
             0,
             SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED,
         )?;
+        if no_activate {
+            shape_orb(hwnd)?;
+        }
     }
     Ok(())
+}
+
+fn shape_orb(hwnd: HWND) -> Result<()> {
+    use windows::Win32::Graphics::Gdi::*;
+    let mut bounds = RECT::default();
+    unsafe {
+        GetClientRect(hwnd, &mut bounds)?;
+        let width = bounds.right;
+        let height = bounds.bottom;
+        if width <= 0 || height <= 0 {
+            return Ok(());
+        }
+        let scale = GetDpiForWindow(hwnd).max(96) as f64 / 96.;
+        // Child WebView2 requires GPUI's HWND swap chain; native regions retain
+        // the orb's circular silhouette without depending on alpha composition.
+        let region = if width < height / 2 {
+            let pad = (3. * scale).round() as i32;
+            let radius = (10. * scale).round() as i32;
+            CreateRoundRectRgn(0, pad, width, height - pad, radius, radius)
+        } else {
+            let pad = (5. * scale).round() as i32;
+            CreateEllipticRgn(pad, pad, width - pad, height - pad)
+        };
+        anyhow::ensure!(!region.is_invalid(), "Unable to create orb silhouette");
+        if SetWindowRgn(hwnd, Some(region), true) == 0 {
+            let _ = DeleteObject(HGDIOBJ(region.0));
+            anyhow::bail!("Unable to apply orb silhouette");
+        }
+    }
+    Ok(())
+}
+
+pub fn valid_orb_shape(window: &Window) -> bool {
+    use windows::Win32::Graphics::Gdi::*;
+    let Ok(hwnd) = hwnd(window) else {
+        return false;
+    };
+    unsafe {
+        let region = CreateRectRgn(0, 0, 0, 0);
+        let mut bounds = RECT::default();
+        let valid = GetClientRect(hwnd, &mut bounds).is_ok()
+            && GetWindowRgn(hwnd, region) != ERROR
+            && !PtInRegion(region, 0, 0).as_bool()
+            && PtInRegion(region, bounds.right / 2, bounds.bottom / 2).as_bool();
+        let _ = DeleteObject(HGDIOBJ(region.0));
+        valid
+    }
 }
 pub fn show_without_activation(window: &Window) -> Result<()> {
     unsafe {

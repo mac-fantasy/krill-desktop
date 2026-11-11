@@ -241,6 +241,7 @@ impl Orb {
             let area=native::work_area(original)?;
             let scale=native::scale(window);
             let style=native::valid_orb_style(window);
+            let mut shape=native::valid_orb_shape(window);
             let foreground=unsafe {windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow()};
             let mut observations=Vec::new();
             for side in [Side::Left,Side::Right] {
@@ -249,6 +250,7 @@ impl Orb {
                 let collapsed=geometry::docked(expanded,area,scale,side,true);
                 native::move_resize(window,collapsed)?;
                 let actual=native::rect(window)?;
+                shape &= native::valid_orb_shape(window);
                 let collapse=actual.width==(16.*scale).round() as i32 && geometry::expanded_anchor(actual,scale,Some(side),true)==(expanded.left,expanded.top);
                 native::move_resize(window,expanded)?;
                 let actual_expanded=native::rect(window)?;
@@ -257,8 +259,8 @@ impl Orb {
             }
             native::move_resize(window,original)?;
             let focus=foreground==unsafe {windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow()};
-            let success=style && tooltip && focus && observations.iter().all(|o|o["collapse"]==true && o["expand"]==true);
-            Ok(serde_json::json!({"success":success,"no_activate_tool_window":style,"native_tooltip":tooltip,"resize_does_not_steal_focus":focus,"scale":scale,"docking":observations}))
+            let success=shape && style && tooltip && focus && observations.iter().all(|o|o["collapse"]==true && o["expand"]==true);
+            Ok(serde_json::json!({"success":success,"native_silhouette":shape,"no_activate_tool_window":style,"native_tooltip":tooltip,"resize_does_not_steal_focus":focus,"scale":scale,"docking":observations}))
         });
         match result {
             Ok(Ok(value)) => value,
