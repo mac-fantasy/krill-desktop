@@ -40,7 +40,18 @@ fn main() -> anyhow::Result<()> {
         .find(|s| s[0] == "--data-dir")
         .map(|s| std::path::PathBuf::from(&s[1]));
     let storage = storage::Storage::new(demo, directory)?;
-    let show = smoke || args.iter().any(|s| s == "--show");
+    #[cfg(target_os = "windows")]
+    let instance = if smoke {
+        None
+    } else {
+        let Some(instance) = windows_native::Instance::acquire(&storage.directory)? else {
+            return Ok(());
+        };
+        Some(instance)
+    };
+    let show = smoke
+        || args.iter().any(|s| s == "--show")
+        || (cfg!(target_os = "windows") && !args.iter().any(|s| s == "--background"));
     application().with_assets(assets::Assets).run(move |cx| {
         init(cx);
         Theme::change(ThemeMode::Dark, None, cx);
@@ -83,11 +94,18 @@ fn main() -> anyhow::Result<()> {
         )
         .expect("Unable to create Krill window");
         #[cfg(target_os = "windows")]
+        if let Some(instance) = instance {
+            dashboard.update(cx, |view, _| view.watch_instance(instance));
+        }
+        #[cfg(target_os = "windows")]
         match orb::open(&dashboard, cx) {
-            Ok((handle, orb)) => dashboard.update(cx, |view, _| {
+            Ok((handle, orb)) => dashboard.update(cx, |view, cx| {
                 view.orb_window = Some(handle);
                 view.orb = Some(orb);
                 view.orb_visible = true;
+                if show {
+                    view.show_panel(cx);
+                }
             }),
             Err(_) => dashboard.update(cx, |view, cx| {
                 view.state.status_detail = "悬浮球暂时无法启动，已打开详情面板。".into();

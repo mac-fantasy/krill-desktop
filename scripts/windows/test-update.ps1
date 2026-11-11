@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-. (Join-Path $projectRoot 'apps/windows/src/Krill.Desktop/Services/install-update.ps1')
+. (Join-Path $projectRoot 'resources/update/install-update.ps1')
 
 function Assert-Equal($Expected, $Actual) {
     if ($Expected -ne $Actual) { throw "Expected '$Expected', got '$Actual'." }

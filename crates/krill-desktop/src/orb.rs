@@ -41,7 +41,8 @@ pub fn open(
         },
         move |window, cx| cx.new(|cx| Orb::new(weak, window, cx)),
     )?;
-    Ok((handle.into(), handle.root(cx)?))
+    let handle: AnyWindowHandle = handle.into();
+    Ok((handle, handle.read(cx, |entity: Entity<Orb>, _| entity)?))
 }
 impl Orb {
     fn new(dashboard: WeakEntity<Dashboard>, window: &mut Window, cx: &mut Context<Self>) -> Self {

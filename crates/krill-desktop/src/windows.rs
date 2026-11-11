@@ -8,6 +8,91 @@ use windows::Win32::{
     UI::{HiDpi::GetDpiForWindow, WindowsAndMessaging::*},
 };
 
+// Use the same directory-derived names as 0.1.x so a second launch brings the
+// existing panel forward, including while an old client is still running.
+pub struct Instance {
+    mutex: windows::Win32::Foundation::HANDLE,
+    event: windows::Win32::Foundation::HANDLE,
+}
+impl Instance {
+    pub fn acquire(directory: &std::path::Path) -> Result<Option<Self>> {
+        use sha2::{Digest, Sha256};
+        use windows::Win32::{
+            Foundation::{ERROR_ALREADY_EXISTS, GetLastError},
+            System::Threading::*,
+        };
+        let key = format!(
+            "{:X}",
+            Sha256::digest(directory.to_string_lossy().as_bytes())
+        );
+        let name: Vec<u16> = format!("Local\\KrillDesktop-{}", &key[..16])
+            .encode_utf16()
+            .chain(Some(0))
+            .collect();
+        let event_name: Vec<u16> = format!("Local\\KrillDesktop-Show-{}", &key[..16])
+            .encode_utf16()
+            .chain(Some(0))
+            .collect();
+        unsafe {
+            let mutex = CreateMutexW(None, true, windows::core::PCWSTR(name.as_ptr()))?;
+            let exists = GetLastError() == ERROR_ALREADY_EXISTS;
+            let event = CreateEventW(
+                None,
+                false,
+                false,
+                windows::core::PCWSTR(event_name.as_ptr()),
+            )?;
+            let instance = Self { mutex, event };
+            if exists {
+                SetEvent(event)?;
+                drop(instance);
+                Ok(None)
+            } else {
+                Ok(Some(instance))
+            }
+        }
+    }
+    pub fn watch(&self, mut activate: impl FnMut() + Send + 'static) {
+        use windows::Win32::{
+            Foundation::{CloseHandle, DUPLICATE_SAME_ACCESS, DuplicateHandle, WAIT_OBJECT_0},
+            System::Threading::*,
+        };
+        let mut duplicate = Default::default();
+        unsafe {
+            if DuplicateHandle(
+                GetCurrentProcess(),
+                self.event,
+                GetCurrentProcess(),
+                &mut duplicate,
+                0,
+                false,
+                DUPLICATE_SAME_ACCESS,
+            )
+            .is_err()
+            {
+                return;
+            }
+        }
+        let event = duplicate.0 as isize;
+        std::thread::spawn(move || unsafe {
+            let event = windows::Win32::Foundation::HANDLE(event as *mut _);
+            while WaitForSingleObject(event, INFINITE) == WAIT_OBJECT_0 {
+                activate();
+            }
+            let _ = CloseHandle(event);
+        });
+    }
+}
+impl Drop for Instance {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = windows::Win32::System::Threading::ReleaseMutex(self.mutex);
+            let _ = windows::Win32::Foundation::CloseHandle(self.mutex);
+            let _ = windows::Win32::Foundation::CloseHandle(self.event);
+        }
+    }
+}
+
 pub fn hwnd(window: &Window) -> Result<HWND> {
     let handle = HasWindowHandle::window_handle(window)
         .map_err(|_| anyhow::anyhow!("Native window handle unavailable"))?;

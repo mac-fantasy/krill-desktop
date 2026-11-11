@@ -2,8 +2,7 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v*'
+    tags: ['v*']
 
 permissions:
   contents: read
@@ -29,26 +28,33 @@ jobs:
   windows:
     needs: version
     runs-on: windows-latest
+    env:
+      KRILL_VERSION: ${{ needs.version.outputs.version }}
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-dotnet@v5
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          global-json-file: global.json
-      - name: Verify Windows
+          components: rustfmt
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: rust-release-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: rust-${{ runner.os }}-${{ runner.arch }}-
+      - name: Verify native Windows client and installer
         shell: pwsh
-        run: ./scripts/windows/verify.ps1
-      - name: Upload Windows UI verification
+        run: ./scripts/verify.ps1
+      - name: Package Windows x64
+        shell: pwsh
+        run: ./scripts/build-windows.ps1 -Version $env:KRILL_VERSION
+      - uses: actions/upload-artifact@v4
         if: always()
-        uses: actions/upload-artifact@v4
         with:
-          name: windows-ui-verification
-          path: artifacts/ui
+          name: windows-native-verification
+          path: artifacts/rust-native
           if-no-files-found: ignore
-      - name: Package Windows
-        shell: pwsh
-        env:
-          RELEASE_VERSION: ${{ needs.version.outputs.version }}
-        run: ./scripts/windows/publish.ps1 -Version $env:RELEASE_VERSION
       - uses: actions/upload-artifact@v4
         with:
           name: windows-release
@@ -58,18 +64,37 @@ jobs:
   macos:
     needs: version
     runs-on: macos-26
+    env:
+      KRILL_VERSION: ${{ needs.version.outputs.version }}
+      MACOSX_DEPLOYMENT_TARGET: '15.0'
     steps:
       - uses: actions/checkout@v5
-      - name: Verify macOS
-        run: bash scripts/macos/verify.sh
-      - name: Package macOS universal app
-        env:
-          KRILL_VERSION: ${{ needs.version.outputs.version }}
-        run: bash scripts/macos/build.sh release --universal
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+          targets: aarch64-apple-darwin
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: rust-release-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: rust-${{ runner.os }}-${{ runner.arch }}-
+      - name: Verify native macOS client and installer
+        run: bash scripts/verify.sh
+      - name: Package Apple Silicon app
+        run: bash scripts/build-macos.sh release
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: macos-native-verification
+          path: artifacts/rust-native
+          if-no-files-found: ignore
       - uses: actions/upload-artifact@v4
         with:
           name: macos-release
-          path: dist/Krill.Desktop-*-macos-universal.zip
+          path: dist/Krill.Desktop-*-macos-arm64.zip
           if-no-files-found: error
 
   publish:
@@ -93,5 +118,6 @@ jobs:
           RELEASE_VERSION: ${{ needs.version.outputs.version }}
         run: |
           test -f "dist/Krill.Desktop-$RELEASE_VERSION-win-x64.zip"
-          test -f "dist/Krill.Desktop-$RELEASE_VERSION-macos-universal.zip"
-          gh release create "$RELEASE_TAG" dist/*.zip --verify-tag --generate-notes --title "Krill Desktop $RELEASE_TAG"
+          test -f "dist/Krill.Desktop-$RELEASE_VERSION-macos-arm64.zip"
+          gh release create "$RELEASE_TAG" dist/*.zip --verify-tag --generate-notes --title "Krill Desktop $RELEASE_TAG" --draft
+          gh release edit "$RELEASE_TAG" --draft=false

@@ -40,7 +40,7 @@ launch_app() {
 }
 show_update_failure() { echo failure > "$TMPDIR/failure"; }
 install_update "${@:2}"
-''', "test", str(ROOT / "scripts/macos/install-update.sh"), "999999", str(destination), str(staging), "--demo", "space and 'quote", "$(not-executed)"
+''', "test", str(ROOT / "resources/update/install-update.sh"), "999999", str(destination), str(staging), "--demo", "space and 'quote", "$(not-executed)"
             ], env=env, capture_output=True, text=True)
             expected = "old" if missing_payload or fail_launch else "new"
             self.assertEqual((destination / "version").read_text(), expected, result.stderr)

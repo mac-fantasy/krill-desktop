@@ -4,12 +4,13 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 configuration="${1:-release}"
 case "$configuration" in debug|release) ;; *) echo "Usage: bash scripts/build-macos.sh [debug|release]" >&2; exit 2 ;; esac
 cd "$repo_root"
-version="$(python3 scripts/release_version.py "${KRILL_VERSION:-0.2.0}")"
+version="$(python3 scripts/release_version.py "${KRILL_VERSION:-$(cat VERSION)}")"
 build_args=(--locked --package krill-desktop --target aarch64-apple-darwin)
 profile=debug
 if [[ "$configuration" == release ]]; then build_args+=(--release); profile=release; fi
 KRILL_VERSION="$version" MACOSX_DEPLOYMENT_TARGET=15.0 cargo build "${build_args[@]}"
 app_bundle="$repo_root/dist/Krill.Desktop-$version-macos-arm64-$configuration/Krill Desktop.app"
+rm -rf "$app_bundle"
 mkdir -p "$app_bundle/Contents/MacOS" "$app_bundle/Contents/Resources"
 cp "target/aarch64-apple-darwin/$profile/KrillMac" "$app_bundle/Contents/MacOS/KrillMac"
 cp resources/macos/Info.plist "$app_bundle/Contents/Info.plist"

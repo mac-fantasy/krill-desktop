@@ -2,9 +2,9 @@ name: Rust migration
 
 on:
   push:
-    branches: ['rust-*']
+    branches: [main, 'rust-*']
   pull_request:
-    paths: ['Cargo.toml', 'Cargo.lock', 'crates/**', 'resources/**', 'scripts/build-macos.sh', '.github/workflows/rust.yml']
+    paths: ['Cargo.toml', 'Cargo.lock', 'crates/**', 'tools/**', 'resources/**', 'scripts/**', '.github/workflows/rust.yml']
   workflow_dispatch:
 
 permissions:
@@ -40,6 +40,13 @@ jobs:
         run: cargo fmt --all --check
       - name: Test shared contracts and GPUI interactions
         run: cargo test --workspace --locked
+      - name: Test macOS update installer
+        if: runner.os == 'macOS'
+        run: python3 -m unittest discover -s scripts/tests -v
+      - name: Test Windows update installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/windows/test-update.ps1
       - name: Build native client
         run: cargo build --package krill-desktop --features native-qa --locked
       - name: Run native macOS smoke verification

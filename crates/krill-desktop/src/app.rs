@@ -64,6 +64,8 @@ pub struct Dashboard {
     launch_at_login: bool,
     launch_approval: bool,
     updater: updates::UpdateState,
+    #[cfg(target_os = "windows")]
+    _instance: Option<crate::windows_native::Instance>,
     browser: Option<Entity<BrowserLogin>>,
     browser_window: Option<AnyWindowHandle>,
     #[cfg(target_os = "windows")]
@@ -215,6 +217,8 @@ impl Dashboard {
             launch_at_login,
             launch_approval,
             updater: updates::UpdateState::default(),
+            #[cfg(target_os = "windows")]
+            _instance: None,
             browser: None,
             browser_window: None,
             #[cfg(target_os = "windows")]
@@ -234,6 +238,14 @@ impl Dashboard {
             self.state.status_detail = "本次设置暂时无法保存，请检查应用数据目录。".into();
         }
         self.update_tray();
+    }
+    #[cfg(target_os = "windows")]
+    pub fn watch_instance(&mut self, instance: crate::windows_native::Instance) {
+        let sender = self.sender.clone();
+        instance.watch(move || {
+            let _ = sender.try_send(Event::Tray(TrayAction::Open));
+        });
+        self._instance = Some(instance);
     }
     fn update_tray(&mut self) {
         if let Some(tray) = &mut self.tray {
@@ -1488,6 +1500,21 @@ impl Render for Dashboard {
                             .flex()
                             .items_center()
                             .gap_3()
+                            .when(cfg!(target_os = "windows"), |d| {
+                                d.on_mouse_down(MouseButton::Left, |_, window, cx| {
+                                    #[cfg(target_os = "windows")]
+                                    if let Ok(hwnd) = crate::windows_native::hwnd(window) {
+                                        let hwnd = hwnd.0 as isize;
+                                        cx.foreground_executor()
+                                            .spawn(async move {
+                                                crate::windows_native::start_move(hwnd);
+                                            })
+                                            .detach();
+                                    }
+                                    #[cfg(not(target_os = "windows"))]
+                                    let _ = (window, cx);
+                                })
+                            })
                             .child(
                                 div()
                                     .size(px(34.))

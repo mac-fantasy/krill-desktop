@@ -84,8 +84,9 @@ impl SystemTray {
         let _ = crate::windows_native::show_context(self.menu.clone(), window, cx);
     }
     pub fn rect(&self) -> Option<tray_icon::Rect> {
-        let mut rect = self.icon.rect()?;
+        let rect = self.icon.rect()?;
         #[cfg(target_os = "macos")]
+        let mut rect = rect;
         if let Some(window) = self
             .icon
             .ns_status_item()

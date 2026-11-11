@@ -1,8 +1,9 @@
-param([ValidateSet('debug', 'release')][string]$Configuration = 'release', [string]$Version = '0.2.0')
+param([ValidateSet('debug', 'release')][string]$Configuration = 'release', [string]$Version = '')
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 Push-Location $projectRoot
 try {
+    if (-not $Version) { $Version = (Get-Content VERSION -Raw).Trim() }
     $versionText = python scripts/release_version.py $Version
     if ($LASTEXITCODE -ne 0) { throw 'Invalid package version.' }
     $env:KRILL_VERSION = $versionText.Trim()
@@ -11,6 +12,7 @@ try {
     & cargo @arguments
     if ($LASTEXITCODE -ne 0) { throw 'Rust client build failed.' }
     $package = Join-Path $projectRoot "dist/Krill.Desktop-$versionText-win-x64"
+    if (Test-Path -LiteralPath $package) { Remove-Item -LiteralPath $package -Recurse -Force }
     New-Item -ItemType Directory -Path $package -Force | Out-Null
     Copy-Item "target/$Configuration/KrillMac.exe" (Join-Path $package 'Krill.Desktop.exe') -Force
     # The marker is generated as .NET metadata by Rust. It contains no C# code,
