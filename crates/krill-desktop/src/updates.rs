@@ -383,13 +383,20 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let app = dir.path().join("Krill Desktop.app");
         fs::create_dir_all(app.join("Contents/MacOS")).unwrap();
-        // System executables can be arm64e-only. The test executable has the
-        // same arm64 target as our distributed client; it is never launched.
-        fs::copy(
-            std::env::current_exe().unwrap(),
-            app.join("Contents/MacOS/KrillMac"),
-        )
-        .unwrap();
+        // CI may run tests on Intel; construct an actual arm64 payload rather
+        // than assuming the host architecture matches the distribution target.
+        let source = dir.path().join("noop.c");
+        fs::write(&source, "int main(void) { return 0; }\n").unwrap();
+        assert!(
+            Command::new("/usr/bin/clang")
+                .args(["-arch", "arm64"])
+                .arg(source)
+                .arg("-o")
+                .arg(app.join("Contents/MacOS/KrillMac"))
+                .status()
+                .unwrap()
+                .success()
+        );
         fs::write(app.join("Contents/Info.plist"),r#"<?xml version="1.0"?><plist version="1.0"><dict><key>CFBundleIdentifier</key><string>com.krill.desktop.macos</string><key>CFBundleExecutable</key><string>KrillMac</string><key>CFBundleShortVersionString</key><string>1.2.3</string><key>CFBundlePackageType</key><string>APPL</string></dict></plist>"#).unwrap();
         assert!(
             Command::new("/usr/bin/codesign")
