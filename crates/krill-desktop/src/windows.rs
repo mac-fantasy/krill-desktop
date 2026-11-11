@@ -297,7 +297,7 @@ pub fn valid_orb_shape(window: &Window) -> bool {
         let region = CreateRectRgn(0, 0, 0, 0);
         let mut bounds = RECT::default();
         let valid = GetClientRect(hwnd, &mut bounds).is_ok()
-            && GetWindowRgn(hwnd, region) != ERROR
+            && GetWindowRgn(hwnd, region).0 != ERROR
             && !PtInRegion(region, 0, 0).as_bool()
             && PtInRegion(region, bounds.right / 2, bounds.bottom / 2).as_bool();
         let _ = DeleteObject(HGDIOBJ(region.0));
