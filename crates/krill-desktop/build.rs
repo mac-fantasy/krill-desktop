@@ -14,12 +14,10 @@ fn main() {
     #[cfg(target_os = "windows")]
     {
         println!("cargo:rerun-if-changed=../../resources/windows/krill.ico");
-        println!("cargo:rerun-if-changed=../../resources/windows/app.manifest");
         let parts: Vec<u64> = version.split('.').map(|p| p.parse().unwrap()).collect();
         let packed = (parts[0] << 48) | (parts[1] << 32) | (parts[2] << 16);
         winresource::WindowsResource::new()
             .set_icon("../../resources/windows/krill.ico")
-            .set_manifest_file("../../resources/windows/app.manifest")
             .set("FileDescription", "Krill Desktop")
             .set("ProductName", "Krill Desktop")
             .set("OriginalFilename", "Krill.Desktop.exe")
@@ -28,6 +26,8 @@ fn main() {
             .set_version_info(winresource::VersionInfo::FILEVERSION, packed)
             .set_version_info(winresource::VersionInfo::PRODUCTVERSION, packed)
             .compile()
-            .expect("Windows icon, version and DPI manifest must be embedded");
+            .expect("Windows icon and version must be embedded");
+        // GPUI already embeds the PerMonitorV2 / Windows 10 / Common Controls
+        // manifest. Embedding a second ID 1 manifest causes CVTRES CVT1100.
     }
 }
