@@ -42,7 +42,7 @@ macOS原生回归、五页渲染、WebKit弹窗和Apple Silicon签名打包已�
 
 Windows旧更新器检查.NET程序集DLL。构建工具仅生成版本元数据标记，运行时不加载DLL、不依赖.NET；PowerShell实际读取AssemblyName以验证旧更新器的兼容路径。新程序通过清单、摘要和包身份校验。
 
-macOS旧更新器只识别universal附件。0.2.0只发布arm64，需手动安装一次；不得将arm64冒充universal。bundle ID、内部可执行名、钥匙串身份和偏好路径保留。Homebrew tap需同步架构、系统要求与附件名。
+macOS旧更新器只识别universal附件。0.2.0只发布arm64，需手动安装一次；不得将arm64冒充universal。bundle ID、内部可执行名、钥匙串身份和偏好路径保留。Homebrew tap已同步架构、系统要求、附件名和真实Release校验值。
 
 合成测试不需要真实账号。真实Krill/第三方登录服务商风控、跨版本联网下载重启、实体多屏热插拔和不同显卡驱动仍是实际环境验收范围，不能用合成页面通过来代替。
 

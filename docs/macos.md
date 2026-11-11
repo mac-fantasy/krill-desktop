@@ -23,6 +23,6 @@ bash scripts/build-macos.sh release
 
 默认浏览器登录完成后按指引导入 Krill 会话，输入框支持 `⌘V`、`⌘A`，并禁止从遮罩框复制会话。应用内 WKWebView 使用非持久数据存储，OAuth 子窗口保留 `window.opener` 和本次私有会话，各窗口独立关闭。只在精确 Krill HTTPS 来源读取 token，再调用 `/api/auth/me` 验证身份后保存。
 
-保留 bundle ID `com.krill.desktop.macos`、内部可执行名称 `KrillMac`、钥匙串 service `com.krill.desktop.macos.account` / account `krill-session`、原 `Account/settings.json` 路径和偏好字段。0.1.x 更新器只识别 universal 附件，因此升级到 0.2.0 必须手动安装一次；Intel 或 macOS 14 用户应留在旧版。Homebrew tap 须先完成附件及系统要求迁移，详见 [发布文档](releases.md)。
+保留 bundle ID `com.krill.desktop.macos`、内部可执行名称 `KrillMac`、钥匙串 service `com.krill.desktop.macos.account` / account `krill-session`、原 `Account/settings.json` 路径和偏好字段。0.1.x 更新器只识别 universal 附件，因此升级到 0.2.0 必须手动安装一次；Intel 或 macOS 14 用户应留在旧版。Homebrew tap 已同步附件及系统要求，可用 `brew upgrade --cask --greedy mac-fantasy/tap/krill-desktop` 迁移，详见 [发布文档](releases.md)。
 
 真实 Krill / GitHub / Apple 登录、第三方风控页面、实际跨版本联网下载重启仍需要使用真实账号和对应环境验收，合成 WebKit 测试不会声称覆盖这些服务行为。

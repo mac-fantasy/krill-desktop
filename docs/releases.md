@@ -26,7 +26,7 @@ Windows 旧更新器强制读取 `Krill.Desktop.dll` 的程序集版本。`tools
 
 macOS 旧更新器只接受 `macos-universal.zip`。不能将 arm64 包冒充 universal；Apple Silicon 用户从 Release 手动安装一次 0.2.0，Intel 或 macOS 14 用户继续使用 0.1.x。保留旧 bundle ID、内部可执行名、Keychain 身份和偏好路径，因此手动替换不要求重新配置账号。钥匙串访问是否需要系统确认取决于旧签名与本机权限。
 
-[Homebrew tap](https://github.com/mac-fantasy/homebrew-tap) 的 cask 与更新脚本也需改为 `macos-arm64.zip`、`depends_on arch: :arm64` 和 macOS Sequoia；在 tap 迁移前用 Release 手动安装。项目仓库迁移前的 0.1.4 及更早版本还受旧下载来源限制，同样需要手动安装。
+[Homebrew tap](https://github.com/mac-fantasy/homebrew-tap) 已同步 `macos-arm64.zip`、实际附件 SHA-256、`depends_on arch: :arm64` 和 macOS Sequoia 要求。可用 `brew upgrade --cask --greedy mac-fantasy/tap/krill-desktop` 完成这次迁移。项目仓库迁移前的 0.1.4 及更早版本还受旧下载来源限制，同样需要手动安装。
 
 ## 本地打包
 

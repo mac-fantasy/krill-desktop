@@ -16,7 +16,16 @@ Windows：完整解压后运行 `Krill.Desktop.exe`，无需 .NET。应用内登
 
 macOS：将 `Krill Desktop.app` 放入应用程序目录，打开后常驻菜单栏。**0.2.0 起仅支持 Apple Silicon，最低 macOS 15。** 首次从 0.1.x 升级到 Rust 版本须手动安装一次，因为旧更新器只识别通用包；账号凭据与设置沿用原位置。默认发布包采用 ad-hoc 签名，尚未进行 Developer ID 公证，首次打开可能需要在系统设置中允许。
 
-[Homebrew tap](https://github.com/mac-fantasy/homebrew-tap) 需要跟随 0.2.0 调整附件名、架构和系统要求；在 tap 完成迁移前，请从 Release 手动安装 Rust 版本。不要把 arm64 安装包重命名为 universal 提供给 Intel 用户。具体升级与发布约束见 [版本发布](docs/releases.md)。
+Homebrew 安装源已同步到 0.2.0：
+
+```bash
+brew install --cask mac-fantasy/tap/krill-desktop
+# 已有 Homebrew 安装升级
+brew update
+brew upgrade --cask --greedy mac-fantasy/tap/krill-desktop
+```
+
+[统一 tap](https://github.com/mac-fantasy/homebrew-tap) 已同步 arm64 附件、校验值及系统要求。0.1.x 的 macOS 用户可通过上述 Homebrew 命令或 Release 手动迁移一次；具体约束见 [版本发布](docs/releases.md)。
 
 ## 使用
 
