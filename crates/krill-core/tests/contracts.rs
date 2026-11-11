@@ -388,6 +388,8 @@ fn release_versions_are_strict_and_assets_are_bound_to_repository_digest_and_pla
         serde_json::from_str(include_str!("../../../contracts/updates/latest.json")).unwrap();
     let current = "1.9.0".parse().unwrap();
     assert_eq!(release.update(current, "win-x64").unwrap().size, 1024);
+    assert_eq!(release.update(current, "macos-arm64").unwrap().size, 2048);
+    assert!(release.update(current, "macos-universal").is_none());
     assert!(release.update(current, "win-arm64").is_none());
     assert!(
         release

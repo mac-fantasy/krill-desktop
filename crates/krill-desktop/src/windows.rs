@@ -22,6 +22,7 @@ impl Instance {
             Foundation::{ERROR_ALREADY_EXISTS, GetLastError},
             System::Threading::*,
         };
+        let directory = std::path::absolute(directory)?;
         let key = format!(
             "{:X}",
             Sha256::digest(directory.to_string_lossy().as_bytes())
@@ -254,13 +255,21 @@ pub fn initialize_orb(window: &Window, x: Option<i32>, y: Option<i32>) -> Result
     let current = rect(window)?;
     let area = work_area(current)?;
     let scale = scale(window);
-    let rect = Rect {
+    let requested = Rect {
         left: x.unwrap_or(area.right() - (108. * scale) as i32),
         top: y.unwrap_or(area.top + area.height / 2 - (44. * scale) as i32),
         width: (geometry::BALL_SIZE * scale).round() as i32,
         height: (geometry::BALL_SIZE * scale).round() as i32,
+    };
+    let rect = requested.clamp(work_area(requested)?, 4);
+    move_resize(window, rect)?;
+    let scale = self::scale(window);
+    let rect = Rect {
+        width: (geometry::BALL_SIZE * scale).round() as i32,
+        height: (geometry::BALL_SIZE * scale).round() as i32,
+        ..rect
     }
-    .clamp(area, 4);
+    .clamp(work_area(rect)?, 4);
     move_resize(window, rect)?;
     Ok(rect)
 }

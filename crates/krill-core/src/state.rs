@@ -186,12 +186,22 @@ impl DashboardState {
         }
     }
     pub fn tooltip(&self) -> String {
+        let quota = self.quota();
         format!(
-            "Krill Desktop\n{} · {}\n{} · {}",
+            "Krill Desktop\n{}\n{}：{}\n{}\n{} · {}",
             self.selected()
                 .map(|s| s.plan.name.as_str())
                 .unwrap_or("充值余额"),
+            quota
+                .as_ref()
+                .map(|q| q.cycle.as_str())
+                .unwrap_or("账户余额"),
             self.primary_remaining(),
+            quota
+                .as_ref()
+                .and_then(|q| q.reset_at)
+                .map(|t| format!("{} 重置", date(Some(t))))
+                .unwrap_or_else(|| "周期时间以官网为准".into()),
             self.status_title(),
             date(self.updated_at)
         )

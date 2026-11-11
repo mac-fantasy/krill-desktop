@@ -296,6 +296,15 @@ impl Dashboard {
     }
     pub(crate) fn show_panel(&mut self, cx: &mut Context<Self>) {
         self.state.panel_visible = true;
+        #[cfg(target_os = "windows")]
+        if !self.orb_visible {
+            if let Some(orb) = self.orb_window {
+                let _ = orb.update(cx, |_, window, _| {
+                    crate::windows_native::show_without_activation(window)
+                });
+            }
+            self.orb_visible = true;
+        }
         let rect = self.tray.as_ref().and_then(|t| t.rect());
         let focus = self.focus.clone();
         #[cfg(target_os = "macos")]
@@ -547,6 +556,9 @@ impl Dashboard {
                 #[cfg(target_os = "windows")]
                 TrayAction::ToggleOrb => {
                     self.orb_visible = !self.orb_visible;
+                    if !self.orb_visible {
+                        self.hide_panel(cx);
+                    }
                     if let Some(orb) = self.orb_window {
                         let show = self.orb_visible;
                         let _ = orb.update(cx, |_, window, _| {
