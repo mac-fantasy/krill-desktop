@@ -203,4 +203,27 @@ mod tests {
         );
         assert_eq!(fs::read_dir(&storage.directory).unwrap().count(), 1);
     }
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn dpapi_credential_roundtrip_matches_legacy_entropy_and_stays_out_of_preferences() {
+        let directory = tempfile::tempdir().unwrap();
+        let storage = Storage::new(false, Some(directory.path().join("account"))).unwrap();
+        let token = Session::parse("synthetic.header.signature").unwrap();
+        storage.save_session(&token).unwrap();
+        assert_eq!(storage.session().unwrap().unwrap().expose(), token.expose());
+        let encrypted = fs::read(storage.directory.join("session.dat")).unwrap();
+        assert!(
+            !encrypted
+                .windows(token.expose().len())
+                .any(|v| v == token.expose().as_bytes())
+        );
+        storage.save_preferences(&Preferences::default()).unwrap();
+        assert!(
+            !fs::read_to_string(storage.directory.join("settings.json"))
+                .unwrap()
+                .contains(token.expose())
+        );
+        storage.delete_session().unwrap();
+        assert!(storage.session().unwrap().is_none());
+    }
 }

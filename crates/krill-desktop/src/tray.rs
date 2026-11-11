@@ -13,10 +13,14 @@ pub enum TrayAction {
     CheckUpdate,
     Website,
     Quit,
+    #[cfg(target_os = "windows")]
+    ToggleOrb,
 }
 pub struct SystemTray {
     icon: TrayIcon,
     last: String,
+    #[cfg(target_os = "windows")]
+    menu: Menu,
 }
 impl SystemTray {
     pub fn new(handler: impl Fn(TrayAction) + Send + Sync + 'static) -> Result<Self> {
@@ -28,13 +32,21 @@ impl SystemTray {
         let website = MenuItem::new("打开官网", true, None);
         let quit = MenuItem::new("退出 Krill Desktop", true, None);
         menu.append_items(&[&open, &refresh, &update, &website, &quit])?;
-        let entries = [
+        let entries = vec![
             (open.id().clone(), TrayAction::Open),
             (refresh.id().clone(), TrayAction::Refresh),
             (update.id().clone(), TrayAction::CheckUpdate),
             (website.id().clone(), TrayAction::Website),
             (quit.id().clone(), TrayAction::Quit),
         ];
+        #[cfg(target_os = "windows")]
+        let entries = {
+            let mut entries = entries;
+            let toggle = MenuItem::new("显示 / 隐藏悬浮球", true, None);
+            menu.prepend(&toggle)?;
+            entries.push((toggle.id().clone(), TrayAction::ToggleOrb));
+            entries
+        };
         let callback = handler.clone();
         MenuEvent::set_event_handler(Some(move |event: MenuEvent| {
             if let Some((_, action)) = entries.iter().find(|(id, _)| *id == event.id) {
@@ -57,13 +69,19 @@ impl SystemTray {
             .with_tooltip("Krill Desktop")
             .with_icon(render_icon(None, true, false)?)
             .with_icon_as_template(cfg!(target_os = "macos"))
-            .with_menu(Box::new(menu))
+            .with_menu(Box::new(menu.clone()))
             .with_menu_on_left_click(false)
             .build()?;
         Ok(Self {
             icon,
             last: String::new(),
+            #[cfg(target_os = "windows")]
+            menu,
         })
+    }
+    #[cfg(target_os = "windows")]
+    pub fn show_context(&self, window: &gpui_kit::Window, cx: &mut gpui_kit::App) {
+        let _ = crate::windows_native::show_context(self.menu.clone(), window, cx);
     }
     pub fn rect(&self) -> Option<tray_icon::Rect> {
         let mut rect = self.icon.rect()?;

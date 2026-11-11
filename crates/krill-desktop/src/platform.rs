@@ -163,7 +163,19 @@ pub fn place_panel(window: &Window, rect: Option<tray_icon::Rect>) {
             w.setFrameOrigin(objc2_foundation::NSPoint::new(x, y));
         }
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    if let Some(rect) = rect {
+        let _ = crate::windows_native::place_panel(
+            window,
+            crate::geometry::Rect {
+                left: rect.position.x as i32,
+                top: rect.position.y as i32,
+                width: rect.size.width as i32,
+                height: rect.size.height as i32,
+            },
+        );
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     let _ = (window, rect);
 }
 pub fn launch_status() -> (bool, bool) {
@@ -179,7 +191,11 @@ pub fn launch_status() -> (bool, bool) {
             status == SMAppServiceStatus::RequiresApproval,
         );
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    {
+        return (crate::windows_native::startup_enabled(), false);
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     (false, false)
 }
 pub fn set_launch_at_login(enabled: bool) -> Result<()> {

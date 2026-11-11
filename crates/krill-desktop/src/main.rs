@@ -1,11 +1,18 @@
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 extern crate gpui_kit as gpui;
 mod app;
+#[cfg(any(target_os = "windows", test))]
+mod geometry;
+#[cfg(target_os = "windows")]
+mod orb;
 mod platform;
 mod smoke;
 mod storage;
 mod tray;
 mod updates;
+#[cfg(target_os = "windows")]
+#[path = "windows.rs"]
+mod windows_native;
 
 use gpui_kit::component::{Theme, ThemeMode};
 use gpui_kit::*;
@@ -69,6 +76,18 @@ fn main() -> anyhow::Result<()> {
             move |window, cx| cx.new(|cx| app::Dashboard::new(storage, demo, show, window, cx)),
         )
         .expect("Unable to create Krill window");
+        #[cfg(target_os = "windows")]
+        match orb::open(&dashboard, cx) {
+            Ok((handle, orb)) => dashboard.update(cx, |view, _| {
+                view.orb_window = Some(handle);
+                view.orb = Some(orb);
+                view.orb_visible = true;
+            }),
+            Err(_) => dashboard.update(cx, |view, cx| {
+                view.state.status_detail = "悬浮球暂时无法启动，已打开详情面板。".into();
+                view.show_panel(cx);
+            }),
+        }
         if smoke {
             smoke::run(window, dashboard, output, smoke_success, cx);
         }

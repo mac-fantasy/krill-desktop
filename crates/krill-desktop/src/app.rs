@@ -61,6 +61,12 @@ pub struct Dashboard {
     launch_at_login: bool,
     launch_approval: bool,
     updater: updates::UpdateState,
+    #[cfg(target_os = "windows")]
+    pub(crate) orb_window: Option<AnyWindowHandle>,
+    #[cfg(target_os = "windows")]
+    pub(crate) orb: Option<Entity<crate::orb::Orb>>,
+    #[cfg(target_os = "windows")]
+    pub(crate) orb_visible: bool,
 }
 impl Dashboard {
     pub fn new(
@@ -144,6 +150,11 @@ impl Dashboard {
             }
         };
         platform::configure_panel(window);
+        #[cfg(target_os = "windows")]
+        if !cfg!(test) {
+            let _ =
+                crate::windows_native::configure(window, false, state.preferences.always_on_top);
+        }
         platform::set_material(window, state.preferences.use_liquid_glass);
         let focus = cx.focus_handle();
         window.focus(&focus, cx);
@@ -192,9 +203,15 @@ impl Dashboard {
             launch_at_login,
             launch_approval,
             updater: updates::UpdateState::default(),
+            #[cfg(target_os = "windows")]
+            orb_window: None,
+            #[cfg(target_os = "windows")]
+            orb: None,
+            #[cfg(target_os = "windows")]
+            orb_visible: false,
         }
     }
-    fn save(&mut self) {
+    pub(crate) fn save(&mut self) {
         if self
             .storage
             .save_preferences(&self.state.preferences)
@@ -249,12 +266,22 @@ impl Dashboard {
         });
         cx.notify();
     }
-    fn show_panel(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn show_panel(&mut self, cx: &mut Context<Self>) {
         self.state.panel_visible = true;
         let rect = self.tray.as_ref().and_then(|t| t.rect());
         let focus = self.focus.clone();
+        #[cfg(target_os = "windows")]
+        let anchor = self.orb_window.and_then(|orb| {
+            orb.update(cx, |_, window, _| crate::windows_native::rect(window).ok())
+                .ok()
+                .flatten()
+        });
         let _ = self.window.update(cx, |_, window, cx| {
             platform::place_panel(window, rect);
+            #[cfg(target_os = "windows")]
+            if let Some(anchor) = anchor {
+                let _ = crate::windows_native::place_panel(window, anchor);
+            }
             platform::show(window);
             window.activate_window();
             window.focus(&focus, cx);
@@ -263,6 +290,20 @@ impl Dashboard {
         (self.launch_at_login, self.launch_approval) = platform::launch_status();
         self.refresh(cx);
         cx.notify();
+    }
+    #[cfg(target_os = "windows")]
+    pub(crate) fn toggle_panel(&mut self, cx: &mut Context<Self>) {
+        if self.state.panel_visible {
+            self.hide_panel(cx);
+        } else {
+            self.show_panel(cx);
+        }
+    }
+    #[cfg(target_os = "windows")]
+    pub(crate) fn show_context(&self, window: &Window, cx: &mut App) {
+        if let Some(tray) = &self.tray {
+            tray.show_context(window, cx);
+        }
     }
     fn hide_panel(&mut self, cx: &mut Context<Self>) {
         self.state.panel_visible = false;
@@ -406,6 +447,20 @@ impl Dashboard {
                 TrayAction::Refresh => self.refresh(cx),
                 TrayAction::Website => cx.open_url(&format!("{ORIGIN}/app/account")),
                 TrayAction::Quit => cx.quit(),
+                #[cfg(target_os = "windows")]
+                TrayAction::ToggleOrb => {
+                    self.orb_visible = !self.orb_visible;
+                    if let Some(orb) = self.orb_window {
+                        let show = self.orb_visible;
+                        let _ = orb.update(cx, |_, window, _| {
+                            if show {
+                                let _ = crate::windows_native::show_without_activation(window);
+                            } else {
+                                platform::hide(window);
+                            }
+                        });
+                    }
+                }
                 TrayAction::CheckUpdate => {
                     self.tab = 4;
                     self.show_panel(cx);
@@ -1028,6 +1083,46 @@ impl Dashboard {
             .child(
                 card()
                     .child("菜单栏与面板")
+                    .when(cfg!(target_os = "windows"), |d| {
+                        d.child(
+                            Button::new("always-on-top")
+                                .ghost()
+                                .label(format!(
+                                    "{} 始终置顶",
+                                    check(self.state.preferences.always_on_top)
+                                ))
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.state.preferences.always_on_top =
+                                        !this.state.preferences.always_on_top;
+                                    #[cfg(target_os = "windows")]
+                                    {
+                                        let _ = crate::windows_native::configure(
+                                            window,
+                                            false,
+                                            this.state.preferences.always_on_top,
+                                        );
+                                    }
+                                    #[cfg(not(target_os = "windows"))]
+                                    let _ = window;
+                                    this.save();
+                                    cx.notify();
+                                })),
+                        )
+                        .child(
+                            Button::new("snap-to-edge")
+                                .ghost()
+                                .label(format!(
+                                    "{} 贴边收缩为进度条",
+                                    check(self.state.preferences.snap_to_edge)
+                                ))
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.state.preferences.snap_to_edge =
+                                        !this.state.preferences.snap_to_edge;
+                                    this.save();
+                                    cx.notify();
+                                })),
+                        )
+                    })
                     .when(cfg!(target_os = "macos"), |d| {
                         d.child(
                             Button::new("glass-setting")
@@ -1085,6 +1180,9 @@ impl Dashboard {
                                     Ok(()) => {
                                         (this.launch_at_login, this.launch_approval) =
                                             platform::launch_status();
+                                        this.state.preferences.start_with_windows =
+                                            this.launch_at_login;
+                                        this.save();
                                     }
                                     Err(e) => this.state.status_detail = e.to_string(),
                                 }

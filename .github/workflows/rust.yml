@@ -25,6 +25,14 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: rust-${{ runner.os }}-${{ runner.arch }}-
       - name: Check formatting
         run: cargo fmt --all --check
       - name: Test shared contracts and GPUI interactions
@@ -34,6 +42,14 @@ jobs:
       - name: Run native macOS smoke verification
         if: runner.os == 'macOS'
         run: ./target/debug/KrillMac --smoke-test --data-dir "$RUNNER_TEMP/krill-native-demo" --output artifacts/rust-native
+      - name: Run native Windows smoke verification
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $process = Start-Process -FilePath ./target/debug/KrillMac.exe -ArgumentList @('--smoke-test', '--data-dir', "$env:RUNNER_TEMP/krill-native-demo", '--output', 'artifacts/rust-native') -PassThru -Wait
+          if ($process.ExitCode -ne 0) { throw 'Native smoke verification failed.' }
+          $result = Get-Content artifacts/rust-native/verification.json -Raw | ConvertFrom-Json
+          if (-not $result.success) { throw 'Native smoke verification did not succeed.' }
       - name: Package Apple Silicon app
         if: runner.os == 'macOS'
         run: bash scripts/build-macos.sh debug
@@ -44,8 +60,8 @@ jobs:
           path: dist/Krill.Desktop-*-macos-arm64-debug
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
-        if: runner.os == 'macOS' && always()
+        if: always()
         with:
-          name: rust-macos-native-verification
+          name: rust-${{ runner.os }}-native-verification
           path: artifacts/rust-native
           if-no-files-found: ignore
