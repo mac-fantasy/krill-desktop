@@ -126,11 +126,10 @@ impl Storage {
 #[cfg(target_os = "windows")]
 mod windows {
     use ::windows::Win32::{
-        Foundation::HLOCAL,
+        Foundation::{HLOCAL, LocalFree},
         Security::Cryptography::{
             CRYPT_INTEGER_BLOB, CRYPTPROTECT_UI_FORBIDDEN, CryptProtectData, CryptUnprotectData,
         },
-        System::Memory::LocalFree,
     };
     use anyhow::Result;
     const ENTROPY: &[u8] = b"Krill.Desktop/session/v1";

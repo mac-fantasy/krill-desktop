@@ -71,7 +71,7 @@ impl SystemTray {
         if let Some(window) = self
             .icon
             .ns_status_item()
-            .and_then(|s| s.button())
+            .and_then(|s| s.button(objc2::MainThreadMarker::new()?))
             .and_then(|b| b.window())
         {
             let scale = window.backingScaleFactor();
