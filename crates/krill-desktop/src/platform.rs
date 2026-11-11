@@ -79,6 +79,64 @@ pub fn configure_panel(window: &Window) {
         }
     }
 }
+pub fn set_material(window: &Window, enabled: bool) {
+    if cfg!(test) {
+        return;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        use gpui_kit::WindowBackgroundAppearance;
+        use objc2::MainThreadOnly;
+        use objc2_app_kit::{
+            NSAutoresizingMaskOptions, NSGlassEffectView, NSGlassEffectViewStyle,
+            NSWindowOrderingMode,
+        };
+        let major = objc2_foundation::NSProcessInfo::processInfo()
+            .operatingSystemVersion()
+            .majorVersion;
+        if major < 26 {
+            window.set_background_appearance(if enabled {
+                WindowBackgroundAppearance::Blurred
+            } else {
+                WindowBackgroundAppearance::Opaque
+            });
+            return;
+        }
+        window.set_background_appearance(if enabled {
+            WindowBackgroundAppearance::Transparent
+        } else {
+            WindowBackgroundAppearance::Opaque
+        });
+        if let Some(content) = native_window(window).and_then(|w| w.contentView()) {
+            for child in content.subviews() {
+                if child.downcast_ref::<NSGlassEffectView>().is_some() {
+                    child.removeFromSuperview();
+                }
+            }
+            if enabled {
+                if let Some(mtm) = objc2::MainThreadMarker::new() {
+                    let glass = NSGlassEffectView::initWithFrame(
+                        NSGlassEffectView::alloc(mtm),
+                        content.bounds(),
+                    );
+                    glass.setStyle(NSGlassEffectViewStyle::Regular);
+                    glass.setCornerRadius(18.);
+                    glass.setAutoresizingMask(
+                        NSAutoresizingMaskOptions::ViewWidthSizable
+                            | NSAutoresizingMaskOptions::ViewHeightSizable,
+                    );
+                    content.addSubview_positioned_relativeTo(
+                        &glass,
+                        NSWindowOrderingMode::Below,
+                        None,
+                    );
+                }
+            }
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = (window, enabled);
+}
 pub fn place_panel(window: &Window, rect: Option<tray_icon::Rect>) {
     #[cfg(target_os = "macos")]
     if let (Some(w), Some(rect)) = (native_window(window), rect) {

@@ -32,3 +32,8 @@ Windows 0.1.8 更新器强制检查.NET程序集DLL；纯Rust包必须设计兼�
 - 首批实现：固定GPUI Kit 0.9.1；共享十进制模型、协议客户端、展示规则、套餐自动切换、账号状态和旧偏好别名；五页界面、默认浏览器会话导入、后台刷新与代次隔离；Keychain / DPAPI兼容代码；macOS菜单栏进度图标、右键菜单、弹出面板、登录项适配；Apple Silicon .app打包。
 - 本机验证：18项共享核心测试及5项客户端测试通过，包括真实GPUI事件分派下的五页签整区点击、整列空白悬停/移出、固定图表布局，以及遮罩输入框Command-V/Command-A/禁止复制行为。macOS原生debug构建和ad-hoc签名包通过，演示进程启动运行。系统界面自动化未获应用访问权限，尚未取得桌面截图。
 - 尚待实现/验证：Windows悬浮球/贴边/多屏和本机凭据适配；应用内WebView及OAuth弹窗；更新服务与旧版升级路径；材质设置；两端原生验收、正式工作流/文档替换；旧实现删除和工作空间清理。不能将当前里程碑视为完成重构。
+- 后续实现：共享更新服务（检查、受限下载、SHA-256、ZIP路径与大小、macOS包签名/架构/身份、Windows清单、原安装组件回滚/重启）；macOS 26+原生NSGlassEffectView与15+模糊回退；标准编辑菜单、登录项设置、Esc/关闭隐藏面板。macOS原生冒烟测试实际启动并依次切换五页，`artifacts/rust-native/verification.json`报告通过。
+- 远端原生CI已启动：分支`rust-gpui-refactor`，初始运行42975016672和修复后运行42975048187；以当前GitHub结果为准。测试宿主使用`gpui-pre`的test-support以避免GPUI Kit可选Fast测试依赖对未同步proptest版本的解析失败。
+- 下一阶段：完成Windows悬浮球（原88px/16px、650ms、无激活、多屏DPI、托盘显示隐藏）及设置；应用内临时WebView/OAuth；升级兼容包/发布脚本；补齐原生验证后再删除旧目录。当前CLI二进制暂名`KrillMac`，Windows发布需明确`Krill.Desktop.exe`名称和清单。
+- 当前证据：提交969a268的原生CI运行42975048187在macos-26、windows-latest均成功（这是更新服务接入前的快照）。更新服务接入后，本机`cargo test --workspace --locked`共26项通过，包括签名arm64应用的正向包校验、错误版本拒绝、ZIP穿越/路径别名拒绝。最新本机debug包构建与签名检查通过。
+- 原生冒烟命令：`target/debug/KrillMac --smoke-test --data-dir /tmp/krill-rust-smoke-data --output artifacts/rust-native`。该模式只用演示数据、逐页切换并自动退出；不等价于截图和鼠标人工验收。GPUI交互单测另行覆盖点击、悬停、快捷键。

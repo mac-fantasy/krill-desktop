@@ -1,4 +1,5 @@
 use crate::storage::Storage;
+use crate::updates;
 use crate::{
     platform,
     tray::{SystemTray, TrayAction},
@@ -35,6 +36,8 @@ enum Event {
     Refresh(u64, RefreshEvent),
     Login(u64, Result<(Session, core::Profile), ApiError>),
     Tray(TrayAction),
+    UpdateCheck(Result<Option<updates::AvailableUpdate>, String>),
+    UpdatePrepared(Result<updates::PreparedUpdate, String>),
 }
 
 pub struct Dashboard {
@@ -57,6 +60,7 @@ pub struct Dashboard {
     _subscriptions: Vec<gpui_kit::Subscription>,
     launch_at_login: bool,
     launch_approval: bool,
+    updater: updates::UpdateState,
 }
 impl Dashboard {
     pub fn new(
@@ -99,6 +103,14 @@ impl Dashboard {
                         if this.state.refresh_due(now) {
                             this.refresh(cx);
                         }
+                        if !this.state.is_demo
+                            && this
+                                .updater
+                                .last_check
+                                .is_none_or(|t| (now - t).num_seconds() >= 6 * 60 * 60)
+                        {
+                            this.check_update(cx);
+                        }
                     })
                     .is_err()
                 {
@@ -132,6 +144,7 @@ impl Dashboard {
             }
         };
         platform::configure_panel(window);
+        platform::set_material(window, state.preferences.use_liquid_glass);
         let focus = cx.focus_handle();
         window.focus(&focus, cx);
         let activation = cx.observe_window_activation(window, |this, window, cx| {
@@ -178,6 +191,7 @@ impl Dashboard {
             _subscriptions: vec![activation],
             launch_at_login,
             launch_approval,
+            updater: updates::UpdateState::default(),
         }
     }
     fn save(&mut self) {
@@ -194,6 +208,46 @@ impl Dashboard {
         if let Some(tray) = &mut self.tray {
             let _ = tray.update(&self.state);
         }
+    }
+    fn check_update(&mut self, cx: &mut Context<Self>) {
+        if self.updater.busy {
+            return;
+        }
+        self.updater.busy = true;
+        self.updater.last_check = Some(Utc::now());
+        self.updater.status = "正在检查 GitHub Release…".into();
+        let sender = self.sender.clone();
+        std::thread::spawn(move || {
+            let _ = sender.send_blocking(Event::UpdateCheck(
+                updates::check().map_err(|e| e.to_string()),
+            ));
+        });
+        cx.notify();
+    }
+    fn install_update(&mut self, cx: &mut Context<Self>) {
+        if self.updater.busy {
+            return;
+        }
+        let Some(update) = self.updater.available.clone() else {
+            return;
+        };
+        let destination = match updates::destination() {
+            Ok(d) => d,
+            Err(e) => {
+                self.updater.status = e.to_string();
+                cx.notify();
+                return;
+            }
+        };
+        self.updater.busy = true;
+        self.updater.status = format!("正在下载并校验 {}…", update.version);
+        let sender = self.sender.clone();
+        std::thread::spawn(move || {
+            let _ = sender.send_blocking(Event::UpdatePrepared(
+                updates::download(&update, &destination).map_err(|e| e.to_string()),
+            ));
+        });
+        cx.notify();
     }
     fn show_panel(&mut self, cx: &mut Context<Self>) {
         self.state.panel_visible = true;
@@ -355,8 +409,34 @@ impl Dashboard {
                 TrayAction::CheckUpdate => {
                     self.tab = 4;
                     self.show_panel(cx);
+                    self.check_update(cx);
                 }
             },
+            Event::UpdateCheck(result) => {
+                self.updater.busy = false;
+                match result {
+                    Ok(update) => {
+                        self.updater.status = update
+                            .as_ref()
+                            .map(|u| format!("发现新版本 {}，可下载并重启更新。", u.version))
+                            .unwrap_or_else(|| {
+                                format!("当前已是最新版本（{}）。", updates::CURRENT_VERSION)
+                            });
+                        self.updater.available = update;
+                    }
+                    Err(error) => self.updater.status = error,
+                }
+            }
+            Event::UpdatePrepared(result) => {
+                self.updater.busy = false;
+                match result {
+                    Ok(prepared) => match prepared.install() {
+                        Ok(()) => cx.quit(),
+                        Err(error) => self.updater.status = error.to_string(),
+                    },
+                    Err(error) => self.updater.status = error,
+                }
+            }
         }
         self.update_tray();
         cx.notify();
@@ -386,7 +466,7 @@ impl Dashboard {
         });
         cx.notify();
     }
-    fn switch_tab(&mut self, tab: usize, cx: &mut Context<Self>) {
+    pub(crate) fn switch_tab(&mut self, tab: usize, cx: &mut Context<Self>) {
         self.tab = tab;
         self.scroll = ScrollHandle::new();
         self.hovered = None;
@@ -948,6 +1028,26 @@ impl Dashboard {
             .child(
                 card()
                     .child("菜单栏与面板")
+                    .when(cfg!(target_os = "macos"), |d| {
+                        d.child(
+                            Button::new("glass-setting")
+                                .ghost()
+                                .label(format!(
+                                    "{} 使用 Liquid Glass（macOS 26 及以上）",
+                                    check(self.state.preferences.use_liquid_glass)
+                                ))
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.state.preferences.use_liquid_glass =
+                                        !this.state.preferences.use_liquid_glass;
+                                    platform::set_material(
+                                        window,
+                                        this.state.preferences.use_liquid_glass,
+                                    );
+                                    this.save();
+                                    cx.notify();
+                                })),
+                        )
+                    })
                     .child(
                         Button::new("percentage")
                             .ghost()
@@ -1054,9 +1154,10 @@ impl Dashboard {
                         ))
                     }),
             )
+            .child(self.update_settings(cx))
             .child(label(format!(
                 "KRILL DESKTOP · {}",
-                env!("CARGO_PKG_VERSION")
+                updates::CURRENT_VERSION
             )))
             .child(
                 Button::new("quit")
@@ -1099,6 +1200,26 @@ impl Dashboard {
             )
             .child(label("登录会话在本机加密保存"))
     }
+    fn update_settings(&self, cx: &mut Context<Self>) -> Div {
+        card()
+            .child(format!("应用更新 · {}", updates::CURRENT_VERSION))
+            .child(label(self.updater.status.clone()))
+            .child(
+                Button::new("check-update")
+                    .label("检查更新")
+                    .disabled(self.updater.busy)
+                    .on_click(cx.listener(|this, _, _, cx| this.check_update(cx))),
+            )
+            .when(self.updater.available.is_some(), |d| {
+                d.child(
+                    Button::new("install-update")
+                        .primary()
+                        .label("下载并重启更新")
+                        .disabled(self.updater.busy)
+                        .on_click(cx.listener(|this, _, _, cx| this.install_update(cx))),
+                )
+            })
+    }
     fn login(&self, cx: &mut Context<Self>) -> Div {
         column().child(heading("连接 Krill 账号"))
             .child(label("在默认浏览器中登录，支持官网任意登录方式及二次登录。"))
@@ -1115,6 +1236,8 @@ impl Render for Dashboard {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let content = if self.login_open {
             self.login(cx)
+        } else if self.tab == 4 {
+            self.settings(cx)
         } else if self.state.subscriptions.is_none() {
             self.welcome(cx)
         } else {
@@ -1144,7 +1267,13 @@ impl Render for Dashboard {
             .size_full()
             .flex()
             .flex_col()
-            .bg(rgb(BG))
+            .bg(
+                if cfg!(target_os = "macos") && self.state.preferences.use_liquid_glass {
+                    rgba(0x0e191fe8)
+                } else {
+                    rgb(BG)
+                },
+            )
             .text_color(rgb(0xe4edef))
             .text_size(px(13.))
             .font_family(if cfg!(target_os = "macos") {

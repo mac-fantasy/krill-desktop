@@ -31,6 +31,9 @@ jobs:
         run: cargo test --workspace --locked
       - name: Build native client
         run: cargo build --package krill-desktop --locked
+      - name: Run native macOS smoke verification
+        if: runner.os == 'macOS'
+        run: ./target/debug/KrillMac --smoke-test --data-dir "$RUNNER_TEMP/krill-native-demo" --output artifacts/rust-native
       - name: Package Apple Silicon app
         if: runner.os == 'macOS'
         run: bash scripts/build-macos.sh debug
@@ -40,3 +43,9 @@ jobs:
           name: rust-macos-arm64-debug
           path: dist/Krill.Desktop-*-macos-arm64-debug
           if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'macOS' && always()
+        with:
+          name: rust-macos-native-verification
+          path: artifacts/rust-native
+          if-no-files-found: ignore
