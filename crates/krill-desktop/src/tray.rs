@@ -87,6 +87,7 @@ impl SystemTray {
         let rect = self.icon.rect()?;
         #[cfg(target_os = "macos")]
         let mut rect = rect;
+        #[cfg(target_os = "macos")]
         if let Some(window) = self
             .icon
             .ns_status_item()

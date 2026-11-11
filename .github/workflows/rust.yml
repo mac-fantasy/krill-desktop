@@ -28,7 +28,8 @@ jobs:
       - name: Install Apple Silicon target
         if: runner.os == 'macOS'
         run: rustup target add aarch64-apple-darwin
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
+        id: cache
         with:
           path: |
             ~/.cargo/registry
@@ -79,3 +80,11 @@ jobs:
           name: rust-${{ runner.os }}-native-verification
           path: artifacts/rust-native
           if-no-files-found: ignore
+      - uses: actions/cache/save@v4
+        if: always() && steps.cache.outputs.cache-hit != 'true'
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}

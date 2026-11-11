@@ -13,6 +13,7 @@ use windows::Win32::{
 pub struct Instance {
     mutex: windows::Win32::Foundation::HANDLE,
     event: windows::Win32::Foundation::HANDLE,
+    owned: bool,
 }
 impl Instance {
     pub fn acquire(directory: &std::path::Path) -> Result<Option<Self>> {
@@ -42,7 +43,11 @@ impl Instance {
                 false,
                 windows::core::PCWSTR(event_name.as_ptr()),
             )?;
-            let instance = Self { mutex, event };
+            let instance = Self {
+                mutex,
+                event,
+                owned: !exists,
+            };
             if exists {
                 SetEvent(event)?;
                 drop(instance);
@@ -86,7 +91,9 @@ impl Instance {
 impl Drop for Instance {
     fn drop(&mut self) {
         unsafe {
-            let _ = windows::Win32::System::Threading::ReleaseMutex(self.mutex);
+            if self.owned {
+                let _ = windows::Win32::System::Threading::ReleaseMutex(self.mutex);
+            }
             let _ = windows::Win32::Foundation::CloseHandle(self.mutex);
             let _ = windows::Win32::Foundation::CloseHandle(self.event);
         }
@@ -392,5 +399,21 @@ impl Drop for Tooltip {
         unsafe {
             let _ = DestroyWindow(self.window);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Instance;
+    #[test]
+    fn single_instance_is_directory_scoped_and_releases_ownership() {
+        let a = tempfile::tempdir().unwrap();
+        let b = tempfile::tempdir().unwrap();
+        let first = Instance::acquire(a.path()).unwrap().unwrap();
+        assert!(Instance::acquire(a.path()).unwrap().is_none());
+        let separate = Instance::acquire(b.path()).unwrap().unwrap();
+        drop(first);
+        assert!(Instance::acquire(a.path()).unwrap().is_some());
+        drop(separate);
     }
 }

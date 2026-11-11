@@ -101,7 +101,8 @@ impl BrowserLogin {
             sender,
         });
         let browser = build(windows.clone(), 0, None, smoke)
-            .and_then(|builder| Ok(if smoke{builder.with_html("<!doctype html><html><body>Krill OAuth regression<script>window.received=null;window.addEventListener('message',event=>window.received=event.data);</script></body></html>")}else{builder.with_url(LOGIN_URL)}.build_as_child(&*window)?));
+            .and_then(|builder| Ok(if smoke{builder.with_html("<!doctype html><html><body>Krill OAuth regression<script>window.received=null;window.addEventListener('message',event=>window.received=event.data);</script></body></html>")}else{builder.with_url(LOGIN_URL)}.build_as_child(&*window)?))
+            .and_then(|view| {anyhow::ensure!(is_private(&view),"This WebView runtime does not support private login sessions"); Ok(view)});
         let (webview, note) = match browser {
             Ok(view) => (
                 Some(view),
@@ -472,6 +473,7 @@ fn build(
                 let window = PopupWindow::new()?;
                 let view =
                     build(session.clone(), id, Some(features), false)?.build_as_child(&window)?;
+                anyhow::ensure!(is_private(&view), "OAuth popup must use a private session");
                 #[cfg(target_os = "macos")]
                 let response = {
                     use wry::WebViewExtMacOS;
@@ -517,4 +519,33 @@ fn build(
         }
     }
     Ok(builder)
+}
+
+fn is_private(view: &WebView) -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        use wry::WebViewExtMacOS;
+        unsafe {
+            !view
+                .webview()
+                .configuration()
+                .websiteDataStore()
+                .isPersistent()
+        }
+    }
+    #[cfg(target_os = "windows")]
+    {
+        use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2_13;
+        use windows_core::Interface;
+        use wry::WebViewExtWindows;
+        (|| -> windows_core::Result<bool> {
+            unsafe {
+                let profile = view.webview().cast::<ICoreWebView2_13>()?.Profile()?;
+                let mut enabled = Default::default();
+                profile.IsInPrivateModeEnabled(&mut enabled)?;
+                Ok(enabled.as_bool())
+            }
+        })()
+        .unwrap_or(false)
+    }
 }
