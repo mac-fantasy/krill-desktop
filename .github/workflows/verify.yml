@@ -1,0 +1,42 @@
+name: Native verification
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['docs/**', 'README.md']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+      - name: Verify WPF interactions, contracts and installer
+        shell: pwsh
+        run: ./scripts/windows/verify.ps1
+      - name: Verify Windows publish package
+        shell: pwsh
+        run: ./scripts/windows/publish.ps1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-ui-verification
+          path: artifacts/ui
+          if-no-files-found: ignore
+  macos:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify SwiftUI client and real login window shortcuts
+        run: bash scripts/macos/verify.sh
+      - name: Verify universal app bundle
+        run: bash scripts/macos/build.sh release --universal
+      - name: Verify Apple Silicon update bundle
+        run: bash scripts/macos/build.sh release --arm64

@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="apps/windows/src/Krill.Core/Krill.Core.csproj" />
+    <Project Path="apps/windows/src/Krill.Desktop/Krill.Desktop.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="apps/windows/tests/Krill.Core.Tests/Krill.Core.Tests.csproj" />
+  </Folder>
+</Solution>

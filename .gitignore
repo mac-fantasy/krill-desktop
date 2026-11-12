@@ -1,13 +1,22 @@
 # Build outputs and release packages
-/target/
+**/[Bb]in/
+**/[Oo]bj/
 /artifacts/
 /dist/
+*.nupkg
+*.snupkg
 
-# Editor state
+# Visual Studio / Rider / per-machine .NET configuration
 .vs/
 .idea/
 *.user
 *.suo
+*.sln.docstates
+*.userosscache
+*.sln.ide
+Directory.Build.local.props
+Directory.Build.local.targets
+*.pubxml.user
 
 # Test results and coverage
 **/TestResults/
@@ -16,11 +25,22 @@
 *.coveragexml
 coverage/
 
-# Native distribution artifacts
-*.app/
+# Swift Package Manager / Xcode user state and build products
+**/.build/
+**/.swiftpm/
+**/DerivedData/
+**/build/
+**/xcuserdata/
+*.xcuserstate
+*.xccheckout
+*.xcscmblueprint
+*.xcarchive/
 *.dSYM/
+*.dSYM.zip
+*.app/
 *.dmg
 *.pkg
+*.ipa
 
 # Python source-check tooling
 __pycache__/

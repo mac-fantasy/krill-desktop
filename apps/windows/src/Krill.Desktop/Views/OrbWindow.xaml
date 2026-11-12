@@ -1,0 +1,37 @@
+<Window x:Class="Krill.Desktop.Views.OrbWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:c="clr-namespace:Krill.Desktop.Controls"
+        Title="Krill 悬浮球" Width="88" Height="88" WindowStyle="None" AllowsTransparency="True"
+        Background="Transparent" ResizeMode="NoResize" ShowInTaskbar="False" ShowActivated="False"
+        Topmost="{Binding AlwaysOnTop}" Style="{StaticResource {x:Type Window}}" Icon="/Assets/krill.ico" AutomationProperties.Name="Krill 用量悬浮球">
+    <Grid x:Name="OrbSurface" Background="Transparent" Cursor="Hand" ToolTip="{Binding OrbTooltip}"
+          MouseEnter="OrbMouseEnter" MouseLeave="OrbMouseLeave"
+          MouseLeftButtonDown="OrbMouseDown" MouseLeftButtonUp="OrbMouseUp" MouseMove="OrbMouseMove"
+          AutomationProperties.Name="单击打开详情，拖动调整位置">
+        <Grid.ContextMenu>
+            <ContextMenu>
+                <MenuItem Header="打开详情" Click="OpenPanelClick" />
+                <MenuItem Header="立即刷新" Command="{Binding RefreshCommand}" />
+                <MenuItem Header="打开官网" Command="{Binding OpenWebsiteCommand}" CommandParameter="/app" />
+                <Separator /><MenuItem Header="退出 Krill Desktop" Command="{Binding ExitCommand}" />
+            </ContextMenu>
+        </Grid.ContextMenu>
+        <Grid x:Name="BallVisual" Margin="5">
+        <Ellipse Fill="#101E26" Stroke="#3A505C" StrokeThickness="1">
+            <Ellipse.Effect><DropShadowEffect BlurRadius="10" ShadowDepth="2" Opacity="0.35" /></Ellipse.Effect>
+        </Ellipse>
+        <c:QuotaRing Value="{Binding QuotaPercent}" Stroke="{Binding AccentColor}" Thickness="3" Margin="5" IsHitTestVisible="False" />
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" IsHitTestVisible="False">
+            <TextBlock Text="{Binding OrbText}" FontSize="18" FontWeight="SemiBold" Foreground="{Binding AccentColor}" HorizontalAlignment="Center" MaxWidth="59" TextTrimming="CharacterEllipsis" />
+            <TextBlock Text="{Binding OrbCaption}" FontSize="9" Foreground="#9BB3BF" Margin="0,1,0,0" HorizontalAlignment="Center" />
+        </StackPanel>
+        <Ellipse Width="7" Height="7" Fill="#F3BC73" Stroke="#10191F" StrokeThickness="1" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,8,7,0" Visibility="{Binding IsStale, Converter={StaticResource BoolVisibility}}" />
+        </Grid>
+        <Border x:Name="BarVisual" Visibility="Collapsed" Background="#101E26" BorderBrush="#3A505C" BorderThickness="1" CornerRadius="5" Margin="0,3">
+            <Grid Margin="4,5">
+                <Border Background="#263B44" CornerRadius="2" />
+                <Border x:Name="BarFill" Background="{Binding AccentColor}" CornerRadius="2" VerticalAlignment="Bottom" />
+                <Ellipse Width="4" Height="4" Fill="#F3BC73" VerticalAlignment="Top" HorizontalAlignment="Center" Visibility="{Binding IsStale, Converter={StaticResource BoolVisibility}}" />
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

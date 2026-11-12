@@ -10,8 +10,8 @@
       "size": 1024
     },
     {
-      "name": "Krill.Desktop-1.10.2-macos-arm64.zip",
-      "browser_download_url": "https://github.com/mac-fantasy/krill-desktop/releases/download/v1.10.2/Krill.Desktop-1.10.2-macos-arm64.zip",
+      "name": "Krill.Desktop-1.10.2-macos-universal.zip",
+      "browser_download_url": "https://github.com/mac-fantasy/krill-desktop/releases/download/v1.10.2/Krill.Desktop-1.10.2-macos-universal.zip",
       "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       "size": 2048
     }
